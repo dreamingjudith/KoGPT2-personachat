@@ -4,8 +4,27 @@ Fine-tuned KoGPT2 chatbot demo with translated PersonaChat (ongoing)
 
 ## Install
 
+개발환경의 재현을 위해 [Anaconda](https://www.anaconda.com/products/individual) 환경 사용을 권장합니다.
+
 ```
+$ git clone --recurse-submodules https://github.com/dreamingjudith/KoGPT2-personachat.git
+$ cd KoGPT2-personachat
+$ conda env create -f environment.yml
 ```
+
+그러나 만약 `virtualenv` 같은 다른 가상환경을 사용할 경우 아래의 모듈을 설치했을 때 정상동작을 보장합니다. (괄호 안의 숫자는 개발 당시 사용한 버전입니다.)
+
+- gluonnlp (0.10.0)
+- mxnet* (1.6.0)
+- pytorch** (1.6.0)
+- pytorch-ignite (0.4.1)
+- sentencepiece (0.1.92)
+- tensorboardX (1.8)
+- tensorflow (2.2.0)
+- transformers (3.0.2)
+
+\* 실제 설치한 모듈명은 mxnet-cu*102*입니다. CUDA 버전에 맞게 *102* 부분을 수정하여 설치하세요.<br />
+\** `cudatoolkit=={$CUDA_버전}`과 함께 설치하면 GPU 버전의 PyTorch를 설치합니다. 자세한 내용은 [링크](https://pytorch.org/get-started/locally/)를 참고하세요.
 
 ## Usage
 
@@ -13,11 +32,14 @@ Fine-tuned KoGPT2 chatbot demo with translated PersonaChat (ongoing)
 ```
 
 ## Reference
-- [Transfer Learning for ConvAI2 by HuggingFace](https://github.com/huggingface/transfer-leraning-conv-ai)
+- [Transfer Learning for ConvAI2 by HuggingFace](https://github.com/huggingface/transfer-learning-conv-ai)
 - [KoGPT2 by SK Telecom](https://github.com/SKT-AI/KoGPT2)
-- [KoGPT2-chatbot](https://github.com/haven-jeon/KoGPT2-chatbot)
+- [KoGPT2-chatbot by haven-jeon](https://github.com/haven-jeon/KoGPT2-chatbot)
 
-## Contributing
+## Contributors
+- [@ModestyJ](https://github.com/ModestyJ)
+- [@kheonCH](https://github.com/kheonCh)
+- [You!!](https://github.com/dreamingjudith/KoGPT2-personachat/pulls)
 
 ## License
 
