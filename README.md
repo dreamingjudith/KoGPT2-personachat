@@ -36,7 +36,7 @@ $ conda env create -f environment.yml
 ```
 $ conda activate cm
 $ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --max_epochs=3 --dataset_path dataset/sample.json
-# OR you can restore model checkpoint
+## OR you can restore model checkpoint
 $ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --restore --max_epochs=3 --dataset_path dataset/sample.json
 ```
 
@@ -50,7 +50,7 @@ $ python cm_kogpt2.py --help
 
 ```
 $ conda activate cm
-$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat
+$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat --dataset_path dataset/sample.json --model_params ${MODEL_CHECKPOINT_PATH}
 ```
 
 ## Reference
@@ -61,8 +61,10 @@ $ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat
 ## Contributors
 - [@ModestyJ](https://github.com/ModestyJ)
 - [@kheonCH](https://github.com/kheonCh)
+- [@prodigyduck](https://github.com/prodigyduck)
 - [You!!](https://github.com/dreamingjudith/KoGPT2-personachat/pulls)
 
 ## License
 
 Modified MIT License
+
