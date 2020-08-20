@@ -3,7 +3,7 @@ HuggingFace에서 가공한 PersonaChat 데이터셋의 샘플 엔트리 1개를
 See https://github.com/huggingface/transfer-learning-conv-ai/blob/master/example_entry.py for entry component
 """
 
-SAMPLE = {
+EXAMPLE_ENTRY = {
     "personality": ["나는 집을 리모델링하는 것을 좋아합니다.",
                     "나는 사냥하러가는 것을 좋아한다.",
                     "나는 활을 쏘는 것을 좋아합니다.",
