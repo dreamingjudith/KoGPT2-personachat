@@ -116,9 +116,9 @@ def get_kogpt2_tokenizer(cachedir='~/kogpt2/'):
 
 def get_dataset(tokenizer, vocab, dataset_path):
     """Read PersonaChat json file and return tokenized dataset"""
-    # logger.info("Reading {}".format(dataset_path))
-    # with open(dataset_path, "r", encoding="utf-8") as f:
-    #     dataset = json.loads(f.read())
+    logger.info("Reading {}".format(dataset_path))
+    with open(dataset_path, "r", encoding="utf-8") as f:
+        dataset = json.loads(f.read())
 
     logger.info("Tokenize and encode the dataset")
     def tokenize(obj):
@@ -127,6 +127,6 @@ def get_dataset(tokenizer, vocab, dataset_path):
         if isinstance(obj, dict):
             return dict((n, tokenize(o)) for n, o in obj.items())
         return list(tokenize(o) for o in obj)
-    dataset = tokenize(EXAMPLE_ENTRY)
+    dataset = tokenize(dataset)
 
     return dataset
