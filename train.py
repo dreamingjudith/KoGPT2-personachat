@@ -31,6 +31,8 @@ PADDED_INPUTS = ["input_ids", "labels", "token_type_ids"]
 
 logger = logging.getLogger(__file__)
 
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 
 def pad_dataset(dataset, padding=0):
     """
@@ -41,8 +43,8 @@ def pad_dataset(dataset, padding=0):
     """
     max_l = max(len(x) for x in dataset["input_ids"])
     for name in PADDED_INPUTS:
-        dataset[name] = [x + [padding if name != "labels" else -100]
-                         * (max_l - len(x)) for x in dataset[name]]
+        dataset[name] = [x + [padding if name != "labels" else -100] * (max_l - len(x)) for x in dataset[name]]
+
     return dataset
 
 
@@ -54,7 +56,7 @@ def build_input_from_segments(persona, history, reply, vocab,
     """
     bos, eos, speaker1, speaker2 = vocab[SPECIAL_TOKENS[:-1]]
     sequence = [[bos] + list(chain(*persona))] + history + [reply + ([eos] if with_eos else [])]
-    sequence = [sequence[0]] + [[speaker2 if (len(sequence)-i) % 2 else speaker1] + s for i, s in enumerate(sequence[1:])]
+    sequence = [sequence[0]] + [[speaker2 if (len(sequence) - i) % 2 else speaker1] + s for i, s in enumerate(sequence[1:])]
     instance = {}
     instance["input_ids"] = list(chain(*sequence))
     instance["token_type_ids"] = [speaker2 if i % 2 else speaker1 for i, s in enumerate(sequence) for _ in s]
@@ -81,9 +83,9 @@ def get_data_loaders(args, tokenizer, vocab):
             persona = dialog["personality"].copy()
             for _ in range(args.personality_permutations):
                 for utterance in dialog["utterances"]:
-                    history = utterance["history"][-(2*args.max_history+1):]
+                    history = utterance["history"][-(2 * args.max_history + 1):]
                     for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
-                        labels = bool(j == num_candidates-1)
+                        labels = bool(j == num_candidates - 1)
                         instance = build_input_from_segments(persona, history, candidate, vocab, labels)
                         for input_name, input_array in instance.items():
                             datasets[dataset_name][input_name].append(input_array)
@@ -173,7 +175,8 @@ def train(args, tokenizer, model, train_loader, val_loader):
     for name, metric in metrics.items():
         metric.attach(evaluator, name)
 
-    # On the main process: add progress bar, tensorboard, checkpoints and save model, configuration and tokenizer before we start to train
+    # On the main process: add progress bar, tensorboard, checkpoints and save model,
+    # configuration and tokenizer before we start to train
     if args.local_rank in [-1, 0]:
         pbar = ProgressBar(persist=True)
         pbar.attach(trainer, metric_names=["loss"])

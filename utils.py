@@ -81,8 +81,7 @@ def get_kogpt2_model(ctx, cachedir='~/kogpt2/'):
                                             config=GPT2Config.from_dict(kogpt2_config),
                                             state_dict=torch.load(model_path))
 
-    device = torch.device(ctx)
-    model.to(device)
+    model.to(ctx)
     model.eval()
 
     return model
@@ -123,6 +122,7 @@ def get_dataset(tokenizer, vocab, dataset_path):
         dataset = json.loads(f.read())
 
     logger.info("Tokenize and encode the dataset")
+
     def tokenize(obj):
         if isinstance(obj, str):
             return vocab[tokenizer(obj)]
