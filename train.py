@@ -170,8 +170,8 @@ def train(args, tokenizer, model, train_loader, val_loader):
     # Prepare metrics - note how we compute distributed metrics
     RunningAverage(output_transform=lambda x: x).attach(trainer, "loss")
     metrics = {"nll": Loss(torch.nn.CrossEntropyLoss(ignore_index=-100),
-                           output_transform=lambda x: (x[0][0], x[1][0])),
-               "accuracy": Accuracy(output_transform=lambda x: (x[0][1], x[1][1]))}
+                           output_transform=lambda x: (x[0], x[1])),
+               "accuracy": Accuracy(output_transform=lambda x: (x[0], x[1]))}
     for name, metric in metrics.items():
         metric.attach(evaluator, name)
 
