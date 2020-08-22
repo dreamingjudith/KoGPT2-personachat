@@ -9,7 +9,7 @@ from datetime import datetime
 
 import gluonnlp as nlp
 import torch
-from gluonnlp.data import SentencepieceTokenizer
+from gluonnlp.data import SentencepieceTokenizer, SentencepieceDetokenizer
 from transformers import GPT2Config, GPT2LMHeadModel
 
 from tools.example_entry import EXAMPLE_ENTRY
@@ -103,6 +103,7 @@ def get_kogpt2_tokenizer(cachedir='~/kogpt2/'):
                            cachedir=cachedir)
 
     tokenizer = SentencepieceTokenizer(vocab_path)
+    detokenizer = SentencepieceDetokenizer(vocab_path)
     vocab = nlp.vocab.BERTVocab.from_sentencepiece(vocab_path,
                                                    mask_token=None,
                                                    sep_token=None,
@@ -112,7 +113,7 @@ def get_kogpt2_tokenizer(cachedir='~/kogpt2/'):
                                                    bos_token='<s>',
                                                    eos_token='</s>')
 
-    return tokenizer, vocab
+    return tokenizer, detokenizer, vocab
 
 
 def get_dataset(tokenizer, vocab, dataset_path):

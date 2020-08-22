@@ -1,6 +1,5 @@
 import argparse
 import logging
-import math
 import os
 from collections import defaultdict
 from itertools import chain
@@ -13,7 +12,7 @@ from ignite.contrib.handlers.tensorboard_logger import (TensorboardLogger,
                                                         OptimizerParamsHandler)
 from ignite.engine import Engine, Events
 from ignite.handlers import ModelCheckpoint, global_step_from_engine
-from ignite.metrics import Accuracy, Loss, MetricsLambda, RunningAverage
+from ignite.metrics import Accuracy, Loss, RunningAverage
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import AdamW, CONFIG_NAME, WEIGHTS_NAME
 
@@ -238,9 +237,8 @@ def main():
                         help="Local rank for distributed training (-1: not distributed)")
     args = parser.parse_args()
 
-    tokenizer, vocab = get_kogpt2_tokenizer()
+    tokenizer, _, vocab = get_kogpt2_tokenizer()
     model = get_kogpt2_model(ctx=args.device)
-    dataset = get_dataset(tokenizer, vocab, args.dataset_path)
 
     train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
     train(args, tokenizer, model, train_loader, val_loader)
