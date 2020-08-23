@@ -80,8 +80,6 @@ def get_kogpt2_model(ctx='cpu', cachedir='~/kogpt2/'):
     model = GPT2LMHeadModel.from_pretrained(pretrained_model_name_or_path=None,
                                             config=GPT2Config.from_dict(kogpt2_config),
                                             state_dict=torch.load(model_path))
-
-    model.to(ctx)
     model.eval()
 
     return model
