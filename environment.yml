@@ -1,9 +1,8 @@
 name: cm
 channels:
   - pytorch
-  - defaults
   - conda-forge
-  - anaconda
+  - defaults
 dependencies:
   - _libgcc_mutex=0.1=main
   - _tflow_select=2.3.0=mkl
@@ -97,7 +96,6 @@ dependencies:
   - setuptools=49.6.0=py37_0
   - six=1.15.0=py_0
   - sqlite=3.32.3=h62c20be_0
-  - tensorboard=2.2.1=pyh532a8cf_0
   - tensorboard-plugin-wit=1.6.0=py_0
   - tensorboardx=1.8=py_0
   - tensorflow=2.2.0=mkl_py37h6e9ce2d_0
@@ -105,7 +103,6 @@ dependencies:
   - tensorflow-estimator=2.2.0=pyh208ff02_0
   - termcolor=1.1.0=py37_1
   - tk=8.6.10=hbc83047_0
-  - tokenizers=0.8.1=py37h4c3b196_0
   - tornado=6.0.4=py37h7b6447c_1
   - tqdm=4.48.2=py_0
   - traitlets=4.3.3=py37_0
@@ -121,6 +118,16 @@ dependencies:
   - zlib=1.2.11=h7b6447c_3
   - pip:
     - cython==0.29.21
+    - future==0.18.2
     - gluonnlp==0.10.0
+    - kogpt2==0.1.1
     - mxnet==1.6.0
-    - graphviz==0.8.4
+    - pandas==1.1.1
+    - python-graphviz==0.8.4
+    - pytorch-lightning==0.9.0
+    - pytz==2020.1
+    - pyyaml==5.3.1
+    - tensorboard==2.2.0
+    - tokenizers==0.8.1rc1
+prefix: /home/com11/anaconda3/envs/cm
+
