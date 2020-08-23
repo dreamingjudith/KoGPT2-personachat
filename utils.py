@@ -50,7 +50,7 @@ def _download(url, filename, chksum, cachedir='~/kogpt2/'):
     return file_path
 
 
-def get_kogpt2_model(ctx, cachedir='~/kogpt2/'):
+def get_kogpt2_model(cachedir='~/kogpt2/'):
     """Get KoGPT2 model after downloading"""
 
     model_info = {
@@ -81,7 +81,6 @@ def get_kogpt2_model(ctx, cachedir='~/kogpt2/'):
                                             config=GPT2Config.from_dict(kogpt2_config),
                                             state_dict=torch.load(model_path))
 
-    model.to(ctx)
     model.eval()
 
     return model

@@ -4,7 +4,7 @@ from collections import defaultdict
 from itertools import chain
 
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 
 from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
 
@@ -115,14 +115,21 @@ def get_data_loaders(args, tokenizer, vocab):
 
     logger.info("Build train and validation dataloaders")
     train_dataset, valid_dataset = TensorDataset(*tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
-    return train_dataset, valid_dataset
+    train_loader = DataLoader(train_dataset,
+                              batch_size=args.train_batch_size,
+                              shuffle=True)
+    valid_loader = DataLoader(valid_dataset,
+                              batch_size=args.valid_batch_size,
+                              shuffle=False)
+
+    return train_loader, valid_loader
 
 
 class CMPersonaChat(LightningModule):
     def __init__(self, hparams, *args):
         super(CMPersonaChat, self).__init__()
         self.hparams = hparams
-        self.kogpt2 = get_kogpt2_model(ctx='cpu')  # for inference. but why kogpt2 model isn't applied device option?
+        self.kogpt2 = get_kogpt2_model()  # for inference. but why kogpt2 model isn't applied device option?
 
     def set_train_data(self, train_set_input):
         self.train_set = train_set_input
@@ -319,6 +326,7 @@ def main():
         tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
         model = CMPersonaChat(args)
+        model.to(args.device)
         model.train()
         trainer = Trainer.from_argparse_args(
             args,
@@ -331,6 +339,7 @@ def main():
         dataset = get_dataset(
             tokenizer, vocab, args.dataset_path, args.dataset_cache)
         model = CMPersonaChat.load_from_checkpoint(args.model_params)
+        model.to(args.device)
 
         personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
         personality = random.choice(personalities)
