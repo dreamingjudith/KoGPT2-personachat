@@ -11,8 +11,7 @@ import torch.nn.functional as F
 from transformers import GPT2LMHeadModel
 
 from train import SPECIAL_TOKENS, build_input_from_segments
-from utils import (get_dataset, get_kogpt2_model, get_kogpt2_tokenizer,
-                   make_logdir)
+from utils import get_dataset, get_kogpt2_tokenizer
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -78,8 +77,7 @@ def sample_sequence(personality, history, vocab, model, args, current_output=Non
         logits = top_filtering(logits, top_k=args.top_k, top_p=args.top_p)
         probs = F.softmax(logits, dim=-1)
 
-        prev = torch.topk(probs, 1)[
-            1] if args.no_sample else torch.multinomial(probs, 1)
+        prev = torch.topk(probs, 1)[1] if args.no_sample else torch.multinomial(probs, 1)
         if i < args.min_length and prev.item() in special_tokens_ids:
             while prev.item() in special_tokens_ids:
                 if probs.max().item() == 1:
@@ -104,6 +102,9 @@ def main():
                         required=True, help="Path, url or short name of the model")
     parser.add_argument("--dataset_path", type=str, required=True,
                         help="Path of the dataset.")
+    parser.add_argument("--dataset_cache", type=str,
+                        default='./dataset_cache',
+                        help="Path or url of the dataset cache")
     parser.add_argument("--max_history", type=int, default=2,
                         help="Number of previous utterances to keep in history")
 

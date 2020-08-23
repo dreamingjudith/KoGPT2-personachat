@@ -213,6 +213,9 @@ def main():
                         help="Device (cuda or cpu)")
     parser.add_argument("--dataset_path", type=str, required=True,
                         help="Path of the dataset.")
+    parser.add_argument("--dataset_cache", type=str,
+                        default='./dataset_cache',
+                        help="Path or url of the dataset cache")
     parser.add_argument("--num_candidates", type=int, default=2,
                         help="Number of candidates for training")
     parser.add_argument("--personality_permutations", type=int, default=1,

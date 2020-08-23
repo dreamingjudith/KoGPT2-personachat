@@ -116,21 +116,29 @@ def get_kogpt2_tokenizer(cachedir='~/kogpt2/'):
     return tokenizer, detokenizer, vocab
 
 
-def get_dataset(tokenizer, vocab, dataset_path):
+def get_dataset(tokenizer, vocab, dataset_path, dataset_cache):
     """Read PersonaChat json file and return tokenized dataset"""
-    logger.info("Reading {}".format(dataset_path))
-    with open(dataset_path, "r", encoding="utf-8") as f:
-        dataset = json.loads(f.read())
+    dataset_cache = dataset_cache + '_' + type(tokenizer).__name__
 
-    logger.info("Tokenize and encode the dataset")
+    if dataset_cache and os.path.isfile(dataset_cache):
+        logger.info("Load tokenized dataset from cache at %s", dataset_cache)
+        dataset = torch.load(dataset_cache)
 
-    def tokenize(obj):
-        if isinstance(obj, str):
-            return vocab[tokenizer(obj)]
-        if isinstance(obj, dict):
-            return dict((n, tokenize(o)) for n, o in obj.items())
-        return list(tokenize(o) for o in obj)
-    dataset = tokenize(dataset)
+    else:
+        logger.info("Reading {}".format(dataset_path))
+        with open(dataset_path, "r", encoding="utf-8") as f:
+            dataset = json.loads(f.read())
+
+        logger.info("Tokenize and encode the dataset")
+
+        def tokenize(obj):
+            if isinstance(obj, str):
+                return vocab[tokenizer(obj)]
+            if isinstance(obj, dict):
+                return dict((n, tokenize(o)) for n, o in obj.items())
+            return list(tokenize(o) for o in obj)
+        dataset = tokenize(dataset)
+        torch.save(dataset, dataset_cache)
 
     return dataset
 
