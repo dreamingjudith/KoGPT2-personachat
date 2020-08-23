@@ -139,7 +139,7 @@ def main():
     model.to(args.device)
 
     logger.info("Sample a personality")
-    dataset = get_dataset(tokenizer, vocab, args.dataset_path)
+    dataset = get_dataset(tokenizer, vocab, args.dataset_path, args.dataset_cache)
     personalities = [dialog["personality"]
                      for dataset in dataset.values() for dialog in dataset]
     personality = random.choice(personalities)

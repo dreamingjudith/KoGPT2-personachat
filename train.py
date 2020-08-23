@@ -70,7 +70,7 @@ def get_data_loaders(args, tokenizer, vocab):
     """
     Prepare the dataset for training and evaluation
     """
-    personachat = get_dataset(tokenizer, vocab, args.dataset_path)
+    personachat = get_dataset(tokenizer, vocab, args.dataset_path, args.dataset_cache)
 
     logger.info("Build inputs and labels")
     datasets = {"train": defaultdict(list), "valid": defaultdict(list)}
