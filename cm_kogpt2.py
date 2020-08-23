@@ -160,7 +160,7 @@ class CMPersonaChat(LightningModule):
         return output
 
     def training_step(self, batch, batch_idx):
-        batch = tuple(input_tensor for input_tensor in batch)
+        batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
         token_ids, label, mask = batch
         loss_avg = self.kogpt2(token_ids, token_type_ids=mask, labels=label) # forward: (batch,768) = (batch_size, max_sentence_length) -> (96,768,50000)
         tensorboard_logs = {'train_loss': loss_avg[0]}
