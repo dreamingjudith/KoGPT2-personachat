@@ -341,7 +341,7 @@ def main():
             model = CMPersonaChat.load_from_checkpoint(args.model_params)
             model.to(args.device)
             model.train()
-            trainer = Trainer(resume_from_checkpoint=args.model_params)
+            trainer = Trainer(resume_from_checkpoint=args.model_params, checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
             trainer.fit(model, train_loader)
         else:
             model = CMPersonaChat(args)
