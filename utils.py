@@ -116,7 +116,8 @@ def get_kogpt2_tokenizer(cachedir='~/kogpt2/'):
 
 def get_dataset(tokenizer, vocab, dataset_path, dataset_cache):
     """Read PersonaChat json file and return tokenized dataset"""
-    dataset_cache = dataset_cache + '_' + type(tokenizer).__name__
+    dataset_basename = os.path.basename(dataset_path).split(".")[0]
+    dataset_cache = "dataset_cache_{}".format(dataset_basename)
 
     if dataset_cache and os.path.isfile(dataset_cache):
         logger.info("Load tokenized dataset from cache at %s", dataset_cache)
