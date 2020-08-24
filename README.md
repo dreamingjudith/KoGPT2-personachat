@@ -18,12 +18,13 @@ $ conda env create -f environment.yml
 - mxnet* (1.6.0)
 - pytorch** (1.6.0)
 - pytorch-ignite (0.4.1)
+- pytorch-lightning (0.8.5)
 - sentencepiece (0.1.92)
 - tensorboardX (1.8)
 - tensorflow (2.2.0)
 - transformers (3.0.2)
 
-\* 실제 설치한 모듈명은 mxnet-cu*102*입니다. CUDA 버전에 맞게 *102* 부분을 수정하여 설치하세요.<br />
+\* 실제 설치한 모듈명은 mxnet-cu*101*입니다. CUDA 버전에 맞게 *101* 부분을 수정하여 설치하세요.<br />
 \** `cudatoolkit=={$CUDA_버전}`과 함께 설치하면 GPU 버전의 PyTorch를 설치합니다. 자세한 내용은 [링크](https://pytorch.org/get-started/locally/)를 참고하세요.
 
 ## Usage
