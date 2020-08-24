@@ -1,39 +1,22 @@
 import argparse
 import logging
+import os
+import random
 from collections import defaultdict
 from itertools import chain
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset
-
-from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
-
-# Model for fine-tuning
+import torch.nn.functional as F
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.loggers import TensorBoardLogger
+from torch.utils.data import DataLoader, TensorDataset
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
-# Chat test
-import random
-import torch.nn.functional as F
+
+from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
 
 
-#################################################################
-# How to use
-"""
-1. Train
-(optional : --restore --train_batch_size=4 --max_epochs=1 --max_len=768 etc)
-$> python cm_kogpt2.py --train --device=cpu  
-$> python cm_kogpt2.py --train --device=cuda --gpus=1
-
-2. Test
-(optional : --top_k=0 --top_p=0.88 etc)
-$> python cm_kogpt2.py --chat --device=cpu
-$> python cm_kogpt2.py --chat --device=cuda --gpus=1
-"""
-
-#################################################################
-# Definition for Special tokens
 SPECIAL_TOKENS = ["<s>", "</s>", "<usr>", "<sys>", "<pad>"]
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<s>', 'eos_token': '</s>', 'pad_token': '<pad>',
                          'additional_special_tokens': ['<usr>', '<sys>']}
@@ -43,8 +26,6 @@ PADDED_INPUTS = ["input_ids", "labels", "token_type_ids"]
 logger = logging.getLogger(__file__)
 
 
-#################################################################
-# Dataset-Loader functions
 def pad_dataset(args, dataset, padding=0):
     """ Pad the dataset.
     This could be optimized by defining a Dataset class and padding at the batch level,
@@ -292,9 +273,9 @@ def main():
     parser.add_argument("--train_batch_size", type=int,
                         default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
-                        default=4, help="Batch size for validation")
+                        default=2, help="Batch size for validation")
     parser.add_argument("--num_workers", type=int,
-                        default=4, help="Number of workers for DataLoader")
+                        default=8, help="Number of workers for DataLoader")
     # Select train/inference
     parser.add_argument('--train',
                         action='store_true',
@@ -326,7 +307,7 @@ def main():
     # Fine-tuning KoGPT2 for the PersonaChat
     if args.train:
         checkpoint_callback = ModelCheckpoint(
-            filepath='cm_model_chp/{epoch:02d}',
+            # filepath='cm_model_chp/{epoch:02d}',
             verbose=True,
             save_last=True,
             monitor='loss',
@@ -336,12 +317,16 @@ def main():
 
         tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
+        logger = TensorBoardLogger("tb_logs", name="my_model")
 
         if args.restore:
             model = CMPersonaChat.load_from_checkpoint(args.model_params)
             model.to(args.device)
             model.train()
-            trainer = Trainer(resume_from_checkpoint=args.model_params, checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
+            trainer = Trainer(resume_from_checkpoint=args.model_params,
+                              checkpoint_callback=checkpoint_callback,
+                              gradient_clip_val=1.0,
+                              logger=logger)
             trainer.fit(model, train_loader)
         else:
             model = CMPersonaChat(args)
@@ -349,7 +334,10 @@ def main():
             model.train()
             trainer = Trainer.from_argparse_args(
                 args,
-                checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
+                checkpoint_callback=checkpoint_callback,
+                weights_save_path=os.getcwd(),
+                gradient_clip_val=1.0,
+                logger=logger)
             trainer.fit(model, train_loader, val_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
