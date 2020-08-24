@@ -22,7 +22,7 @@ import torch.nn.functional as F
 # How to use
 """
 1. Train
-(optional : --train_batch_size=4 --max_epochs=1 --max_len=768 etc)
+(optional : --restore --train_batch_size=4 --max_epochs=1 --max_len=768 etc)
 $> python cm_kogpt2.py --train --device=cpu  
 $> python cm_kogpt2.py --train --device=cuda --gpus=1
 
@@ -131,15 +131,15 @@ class CMPersonaChat(LightningModule):
         self.hparams = hparams
         self.kogpt2 = get_kogpt2_model()  # for inference. but why kogpt2 model isn't applied device option?
 
-    def set_train_data(self, train_set_input):
-        self.train_set = train_set_input
+    #def set_train_data(self, train_set_input):
+    #    self.train_set = train_set_input
 
-    def set_model(self, model):
-        self.kogpt2 = model
+    #def set_model(self, model):
+    #    self.kogpt2 = model
 
-    def set_tokenizer(self, tok, vocab):
-        self.tok = tok
-        self.vocab = vocab
+    #def set_tokenizer(self, tok, vocab):
+    #    self.tok = tok
+    #    self.vocab = vocab
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -162,7 +162,9 @@ class CMPersonaChat(LightningModule):
     def training_step(self, batch, batch_idx):
         batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
         token_ids, label, mask = batch
-        loss_avg = self.kogpt2(token_ids, token_type_ids=mask, labels=label) # forward: (batch,768) = (batch_size, max_sentence_length) -> (96,768,50000)
+        # forward: input(batch,max_sentence_length) -> output(batch_size, max_sentence_length,vocab)
+        # e.g. (4,768) -> (4,768,50000)
+        loss_avg = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
         tensorboard_logs = {'train_loss': loss_avg[0]}
         return {'loss': loss_avg[0], 'log': tensorboard_logs}
 
@@ -293,6 +295,10 @@ def main():
                         action='store_true',
                         default=False,
                         help='eval train set (default: False)')
+    parser.add_argument('--restore',
+                        action='store_true',
+                        default=False,
+                        help='train using saved checkpoint (default: False)')
     parser.add_argument('--chat',
                         action='store_true',
                         default=False,
@@ -325,13 +331,21 @@ def main():
 
         tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
-        model = CMPersonaChat(args)
-        model.to(args.device)
-        model.train()
-        trainer = Trainer.from_argparse_args(
-            args,
-            checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
-        trainer.fit(model, train_loader)
+
+        if args.restore:
+            model = CMPersonaChat.load_from_checkpoint(args.model_params)
+            model.to(args.device)
+            model.train()
+            trainer = Trainer(resume_from_checkpoint=args.model_params)
+            trainer.fit(model, train_loader)
+        else:
+            model = CMPersonaChat(args)
+            model.to(args.device)
+            model.train()
+            trainer = Trainer.from_argparse_args(
+                args,
+                checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
+            trainer.fit(model, train_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
     if args.chat:
