@@ -49,11 +49,12 @@ def pad_dataset(args, dataset, padding=0):
     """ Pad the dataset.
     This could be optimized by defining a Dataset class and padding at the batch level,
     but this is simpler. """
-    #max_l = max(len(x) for x in dataset["input_ids"])
+    # max_l = max(len(x) for x in dataset["input_ids"])
     max_l = args.max_len
+
     for name in PADDED_INPUTS:
-        dataset[name] = [x + [padding if name != "labels" else -100]
-                         * (max_l - len(x)) for x in dataset[name]]
+        dataset[name] = [x + [padding if name != "labels" else -100] * (max_l - len(x)) for x in dataset[name]]
+
     return dataset
 
 
@@ -70,8 +71,8 @@ def build_input_from_segments(persona, history, reply, vocab, labels=False, with
                                   2 else speaker1 for i, s in enumerate(sequence) for _ in s]
     instance["labels"] = [-100] * len(instance["input_ids"])
     if labels:
-        instance["labels"] = ([-100] * sum(len(s)
-                                              for s in sequence[:-1])) + [-100] + sequence[-1][1:]
+        instance["labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
+
     return instance
 
 
@@ -89,9 +90,9 @@ def get_data_loaders(args, tokenizer, vocab):
             persona = dialog["personality"].copy()
             for _ in range(args.personality_permutations):
                 for utterance in dialog["utterances"]:
-                    history = utterance["history"][-(2*args.max_history+1):]
+                    history = utterance["history"][-(2 * args.max_history + 1):]
                     for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
-                        labels = bool(j == num_candidates-1)
+                        labels = bool(j == num_candidates - 1)
                         instance = build_input_from_segments(
                             persona, history, candidate, vocab, labels)
                         for input_name, input_array in instance.items():
@@ -113,22 +114,22 @@ def get_data_loaders(args, tokenizer, vocab):
             tensor_datasets[dataset_name].append(tensor)
 
     logger.info("Build train and validation dataloaders")
-    train_dataset, valid_dataset = TensorDataset(
-        *tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
-    return train_dataset
+    train_dataset, valid_dataset = TensorDataset(*tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
+    train_loader = DataLoader(train_dataset,
+                              batch_size=args.train_batch_size,
+                              shuffle=True)
+    valid_loader = DataLoader(valid_dataset,
+                              batch_size=args.valid_batch_size,
+                              shuffle=False)
 
-#################################################################
-# Class : CMPersonaChat
-# Description : CookieMonster Perona chat using KoGPT2 pre-trained model 
+    return train_loader, valid_loader
+
 
 class CMPersonaChat(LightningModule):
-    #def __init__(self, hparams, **kwargs):
     def __init__(self, hparams, *args):
         super(CMPersonaChat, self).__init__()
         self.hparams = hparams
-        self.neg = -1e18
-        self.kogpt2 = get_kogpt2_model(ctx='cpu') # for inference
-        self.loss_function = torch.nn.CrossEntropyLoss(reduction='none')
+        self.kogpt2 = get_kogpt2_model()  # for inference. but why kogpt2 model isn't applied device option?
 
     def set_train_data(self, train_set_input):
         self.train_set = train_set_input
@@ -155,11 +156,11 @@ class CMPersonaChat(LightningModule):
         return parser
 
     def forward(self, inputs, token_type_ids):
-        output, _ = self.kogpt2(inputs, token_type_ids=token_type_ids)
+        output, *_ = self.kogpt2(inputs, token_type_ids=token_type_ids)
         return output
 
     def training_step(self, batch, batch_idx):
-        batch = tuple(input_tensor for input_tensor in batch)
+        batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
         token_ids, label, mask = batch
         loss_avg = self.kogpt2(token_ids, token_type_ids=mask, labels=label) # forward: (batch,768) = (batch_size, max_sentence_length) -> (96,768,50000)
         tensorboard_logs = {'train_loss': loss_avg[0]}
@@ -186,38 +187,6 @@ class CMPersonaChat(LightningModule):
                         'frequency': 1}
         return [optimizer], [lr_scheduler]
 
-    """
-    # This is not used
-    def _collate_fn(self, batch):
-        
-        data = []
-        mask = []
-        label = []
-        for item in batch:
-            data_temp = []
-            label_temp = []
-            mask_temp = []
-            for value in item[0]:
-                for last in value:
-                    data_temp.append(last.tolist())
-            for value in item[2]:
-                for last in value:
-                    mask_temp.append(last.tolist())
-            for value in item[1]:
-                for last in value:
-                    label_temp.append(last.tolist())
-            data.append(data_temp[:768])
-            mask.append(mask_temp[:768])
-            label.append(label_temp[:768])
-        return torch.LongTensor(data), torch.LongTensor(mask), torch.LongTensor(label)
-    """
-
-    def train_dataloader(self):
-        train_dataloader = DataLoader(
-            self.train_set, batch_size=self.hparams.train_batch_size, num_workers=2,
-            shuffle=True)
-#            shuffle=True, collate_fn=self._collate_fn)
-        return train_dataloader
 
 ###################################
 # Chat inference functions
@@ -259,6 +228,7 @@ def top_filtering(logits, top_k=0., top_p=0.9, threshold=-float('Inf'), filter_v
 
     return logits
 
+
 def sample_sequence(personality, history, vocab, model, args, current_output=None):
     special_tokens_ids = vocab[SPECIAL_TOKENS]
     if current_output is None:
@@ -267,7 +237,6 @@ def sample_sequence(personality, history, vocab, model, args, current_output=Non
     for i in range(args.max_len):
         instance = build_input_from_segments(personality, history, current_output, vocab, with_eos=False)
 
-        #print(instance["input_ids"])
         input_ids = torch.tensor(instance["input_ids"], device=args.device).unsqueeze(0)
         token_type_ids = torch.tensor(instance["token_type_ids"], device=args.device).unsqueeze(0)
 
@@ -298,7 +267,7 @@ def main():
     parser.add_argument("--device", type=str,
                         default="cuda" if torch.cuda.is_available() else "cpu",
                         help="Device (cuda or cpu)")
-    parser.add_argument("--dataset_path", type=str, #required=True,
+    parser.add_argument("--dataset_path", type=str,
                         default="dataset/sample.json",
                         help="Path of the dataset.")
     parser.add_argument("--dataset_cache", type=str,
@@ -341,17 +310,7 @@ def main():
     # Model configuration augments
     parser = CMPersonaChat.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
-
     args = parser.parse_args()
-
-    tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
-    kogpt2_model = get_kogpt2_model(ctx=args.device)
-    dataset = get_dataset(tokenizer, vocab, args.dataset_path, args.dataset_cache)
-
-    # Get data loaders
-    #train_loader, val_loader = get_data_loaders(
-    train_set = get_data_loaders(
-        args, tokenizer, vocab)
 
     # Fine-tuning KoGPT2 for the PersonaChat
     if args.train:
@@ -363,24 +322,29 @@ def main():
             mode='min',
             prefix='model_'
         )
-        # python train_torch.py --train --gpus 1 --max_epochs 3
+
+        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+        train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
         model = CMPersonaChat(args)
-        model.set_model(kogpt2_model)
-        model.set_train_data(train_set)
+        model.to(args.device)
         model.train()
         trainer = Trainer.from_argparse_args(
             args,
             checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
-        trainer.fit(model)
+        trainer.fit(model, train_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
     if args.chat:
+        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+        dataset = get_dataset(
+            tokenizer, vocab, args.dataset_path, args.dataset_cache)
         model = CMPersonaChat.load_from_checkpoint(args.model_params)
+        model.to(args.device)
+
         personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
         personality = random.choice(personalities)
         for sentence in personality:
-            print("Selected personality: %s",
-                        detokenizer(vocab.to_tokens(sentence)))
+            print("Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
         history = []
 
         while True:
@@ -389,14 +353,13 @@ def main():
                 print('Prompt should not be empty!')
                 raw_text = input(">>> ")
             history.append(vocab[tokenizer(raw_text)])
-            #print(history)
             with torch.no_grad():
-                #out_ids = sample_sequence(personality, history, tokenizer, model, args)
                 out_ids = sample_sequence(personality, history, vocab, model, args)
             history.append(out_ids)
-            history = history[-(2*args.max_history+1):]
+            history = history[-(2 * args.max_history + 1):]
             out_text = detokenizer(vocab.to_tokens(out_ids))
             print(out_text)
+
 
 if __name__ == "__main__":
     main()

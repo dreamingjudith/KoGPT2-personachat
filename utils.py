@@ -50,7 +50,7 @@ def _download(url, filename, chksum, cachedir='~/kogpt2/'):
     return file_path
 
 
-def get_kogpt2_model(ctx='cpu', cachedir='~/kogpt2/'):
+def get_kogpt2_model(cachedir='~/kogpt2/'):
     """Get KoGPT2 model after downloading"""
 
     model_info = {
