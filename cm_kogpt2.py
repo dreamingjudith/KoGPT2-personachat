@@ -265,6 +265,10 @@ def main():
                         help="Number of permutations of personality sentences")
     parser.add_argument("--max_history", type=int, default=2,
                         help="Number of previous exchanges to keep in history")
+    parser.add_argument("--name", type=str,
+                        default="cm_kogpt2",
+                        help="Model name for logging")
+
     # Shared arguments for dataloader and training
     parser.add_argument('--max_len',
                         type=int,
@@ -276,6 +280,7 @@ def main():
                         default=2, help="Batch size for validation")
     parser.add_argument("--num_workers", type=int,
                         default=8, help="Number of workers for DataLoader")
+
     # Select train/inference
     parser.add_argument('--train',
                         action='store_true',
@@ -293,6 +298,8 @@ def main():
                         type=str,
                         default='cm_model_chp/model_last.ckpt',
                         help='model binary for starting chat')
+
+    # Additional arguments for chatting
     parser.add_argument("--temperature", type=int, default=0.7, help="Sampling softmax temperature")
     parser.add_argument("--top_k", type=int, default=0, help="Filter top-k tokens before sampling (<=0: no filtering)")
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering (top-p) before sampling (<=0.0: no filtering)")
@@ -306,18 +313,19 @@ def main():
 
     # Fine-tuning KoGPT2 for the PersonaChat
     if args.train:
+        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+        train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
+        logger = TensorBoardLogger("logs", name=args.name)
+
         checkpoint_callback = ModelCheckpoint(
-            # filepath='cm_model_chp/{epoch:02d}',
+            filepath='{}/checkpoints/{epoch:02d}-{val_loss:.4f}'.format(logger.log_dir),
             verbose=True,
             save_last=True,
-            monitor='loss',
+            save_top_k=10,
+            monitor='val_loss',
             mode='min',
             prefix='model_'
         )
-
-        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
-        train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
-        logger = TensorBoardLogger("tb_logs", name="my_model")
 
         if args.restore:
             model = CMPersonaChat.load_from_checkpoint(args.model_params)
