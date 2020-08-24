@@ -29,7 +29,28 @@ $ conda env create -f environment.yml
 
 ## Usage
 
+### Train
+
+학습 시 dataset_path로 지정된 JSON 파일의 이름에 따라 미리 토크나이즈된 dataset_cache를 불러올 수도 있습니다. 따라서 정확한 파일 패스 지정이 필요합니다.
+
 ```
+$ conda activate cm
+$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --max_epochs=3 --dataset_path dataset/sample.json
+# OR you can restore model checkpoint
+$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --restore --max_epochs=3 --dataset_path dataset/sample.json
+```
+
+더 많은 종류의 하이퍼파라미터 세팅을 확인하고 싶을 땐 아래와 같이 입력하세요.
+
+```
+$ python cm_kogpt2.py --help
+```
+
+### Interactive chatting with pretrained checkpoint
+
+```
+$ conda activate cm
+$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat
 ```
 
 ## Reference
