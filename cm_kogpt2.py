@@ -318,7 +318,7 @@ def main():
         logger = TensorBoardLogger("logs", name=args.name)
 
         checkpoint_callback = ModelCheckpoint(
-            filepath='{}/checkpoints/{epoch:02d}-{val_loss:.4f}'.format(logger.log_dir),
+            filepath='{}/checkpoints/{}'.format(logger.log_dir, '{epoch:02d}-{val_loss:.4f}'),
             verbose=True,
             save_last=True,
             save_top_k=10,
@@ -335,7 +335,7 @@ def main():
                               checkpoint_callback=checkpoint_callback,
                               gradient_clip_val=1.0,
                               logger=logger)
-            trainer.fit(model, train_loader)
+            trainer.fit(model, train_loader, val_loader)
         else:
             model = CMPersonaChat(args)
             model.to(args.device)
