@@ -117,9 +117,11 @@ def get_data_loaders(args, tokenizer, vocab):
     train_dataset, valid_dataset = TensorDataset(*tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
     train_loader = DataLoader(train_dataset,
                               batch_size=args.train_batch_size,
+                              num_workers=args.num_workers,
                               shuffle=True)
     valid_loader = DataLoader(valid_dataset,
                               batch_size=args.valid_batch_size,
+                              num_workers=args.num_workers,
                               shuffle=False)
 
     return train_loader, valid_loader
@@ -130,16 +132,6 @@ class CMPersonaChat(LightningModule):
         super(CMPersonaChat, self).__init__()
         self.hparams = hparams
         self.kogpt2 = get_kogpt2_model()  # for inference. but why kogpt2 model isn't applied device option?
-
-    #def set_train_data(self, train_set_input):
-    #    self.train_set = train_set_input
-
-    #def set_model(self, model):
-    #    self.kogpt2 = model
-
-    #def set_tokenizer(self, tok, vocab):
-    #    self.tok = tok
-    #    self.vocab = vocab
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -164,9 +156,20 @@ class CMPersonaChat(LightningModule):
         token_ids, label, mask = batch
         # forward: input(batch,max_sentence_length) -> output(batch_size, max_sentence_length,vocab)
         # e.g. (4,768) -> (4,768,50000)
-        loss_avg = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
-        tensorboard_logs = {'train_loss': loss_avg[0]}
-        return {'loss': loss_avg[0], 'log': tensorboard_logs}
+        loss, *_ = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
+        tensorboard_logs = {'train_loss': loss}
+        return {'loss': loss, 'log': tensorboard_logs}
+
+    def validation_step(self, batch, batch_idx):
+        batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
+        token_ids, label, mask = batch
+        loss, *_ = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
+        return {'val_loss': loss}
+
+    def validation_epoch_end(self, outputs):
+        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
+        tensorboard_logs = {'val_loss': avg_loss}
+        return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
 
     def configure_optimizers(self):
         # Prepare optimizer
@@ -290,6 +293,8 @@ def main():
                         default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
                         default=4, help="Batch size for validation")
+    parser.add_argument("--num_workers", type=int,
+                        default=4, help="Number of workers for DataLoader")
     # Select train/inference
     parser.add_argument('--train',
                         action='store_true',
@@ -345,7 +350,7 @@ def main():
             trainer = Trainer.from_argparse_args(
                 args,
                 checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
-            trainer.fit(model, train_loader)
+            trainer.fit(model, train_loader, val_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
     if args.chat:
