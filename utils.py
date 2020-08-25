@@ -10,7 +10,7 @@ from datetime import datetime
 import gluonnlp as nlp
 import torch
 from gluonnlp.data import SentencepieceTokenizer, SentencepieceDetokenizer
-from transformers import GPT2Config, GPT2LMHeadModel
+from transformers import GPT2Config, GPT2LMHeadModel, GPT2DoubleHeadsModel
 
 from tools.example_entry import EXAMPLE_ENTRY
 
@@ -77,9 +77,10 @@ def get_kogpt2_model(cachedir='~/kogpt2/'):
                            model_info['chksum'],
                            cachedir=cachedir)
 
-    model = GPT2LMHeadModel.from_pretrained(pretrained_model_name_or_path=None,
-                                            config=GPT2Config.from_dict(kogpt2_config),
-                                            state_dict=torch.load(model_path))
+    # model = GPT2LMHeadModel.from_pretrained(pretrained_model_name_or_path=None,
+    model = GPT2DoubleHeadsModel.from_pretrained(pretrained_model_name_or_path=None,
+                                                 config=GPT2Config.from_dict(kogpt2_config),
+                                                 state_dict=torch.load(model_path))
     model.eval()
 
     return model

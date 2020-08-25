@@ -34,7 +34,7 @@ def pad_dataset(args, dataset, padding=0):
     max_l = args.max_len
 
     for name in PADDED_INPUTS:
-        dataset[name] = [x + [padding if name != "labels" else -100] * (max_l - len(x)) for x in dataset[name]]
+        dataset[name] = [x + [padding if name != "lm_labels" else -100] * (max_l - len(x)) for x in dataset[name]]
 
     return dataset
 
@@ -50,9 +50,10 @@ def build_input_from_segments(persona, history, reply, vocab, labels=False, with
     instance["input_ids"] = list(chain(*sequence))
     instance["token_type_ids"] = [speaker2 if i %
                                   2 else speaker1 for i, s in enumerate(sequence) for _ in s]
-    instance["labels"] = [-100] * len(instance["input_ids"])
+    instance["mc_token_ids"] = len(instance["input_ids"]) - 1
+    instance["lm_labels"] = [-100] * len(instance["input_ids"])
     if labels:
-        instance["labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
+        instance["lm_labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
 
     return instance
 
@@ -79,6 +80,7 @@ def get_data_loaders(args, tokenizer, vocab):
                         for input_name, input_array in instance.items():
                             datasets[dataset_name][input_name].append(
                                 input_array)
+                    datasets[dataset_name]["mc_labels"].append(num_candidates - 1)
                     datasets[dataset_name]["n_candidates"] = num_candidates
                 # permuted personalities
                 persona = [persona[-1]] + persona[:-1]
@@ -90,8 +92,8 @@ def get_data_loaders(args, tokenizer, vocab):
             args, dataset, padding=vocab[SPECIAL_TOKENS[-1]])
         for input_name in MODEL_INPUTS:
             tensor = torch.tensor(dataset[input_name])
-            tensor = tensor.view(
-                (-1, datasets[dataset_name]["n_candidates"]) + tensor.shape[1:])
+            if input_name != "mc_labels":
+                tensor = tensor.view((-1, datasets[dataset_name]["n_candidates"]) + tensor.shape[1:])
             tensor_datasets[dataset_name].append(tensor)
 
     logger.info("Build train and validation dataloaders")
@@ -134,17 +136,26 @@ class CMPersonaChat(LightningModule):
 
     def training_step(self, batch, batch_idx):
         batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
-        token_ids, label, mask = batch
+        input_ids, mc_token_ids, lm_labels, mc_labels, token_type_ids = batch
         # forward: input(batch,max_sentence_length) -> output(batch_size, max_sentence_length,vocab)
         # e.g. (4,768) -> (4,768,50000)
-        loss, *_ = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
+        
+        (lm_loss), (mc_loss), *_ = self.kogpt2(
+            input_ids, token_type_ids=token_type_ids, mc_token_ids=mc_token_ids,
+            mc_labels=mc_labels, lm_labels=lm_labels
+        )
+        loss = (lm_loss * self.hparams.lm_coef + mc_loss * self.hparams.mc_coef)
         tensorboard_logs = {'train_loss': loss}
         return {'loss': loss, 'log': tensorboard_logs}
 
     def validation_step(self, batch, batch_idx):
         batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
-        token_ids, label, mask = batch
-        loss, *_ = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
+        input_ids, mc_token_ids, lm_labels, mc_labels, token_type_ids = batch
+        (lm_loss), (mc_loss), *_ = self.kogpt2(
+            input_ids, token_type_ids=token_type_ids, mc_token_ids=mc_token_ids,
+            mc_labels=mc_labels, lm_labels=lm_labels
+        )
+        loss = (lm_loss * self.hparams.lm_coef + mc_loss * self.hparams.mc_coef)
         return {'val_loss': loss}
 
     def validation_epoch_end(self, outputs):
