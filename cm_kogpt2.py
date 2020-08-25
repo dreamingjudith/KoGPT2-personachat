@@ -20,8 +20,8 @@ from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
 SPECIAL_TOKENS = ["<s>", "</s>", "<usr>", "<sys>", "<pad>"]
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<s>', 'eos_token': '</s>', 'pad_token': '<pad>',
                          'additional_special_tokens': ['<usr>', '<sys>']}
-MODEL_INPUTS = ["input_ids", "labels", "token_type_ids"]
-PADDED_INPUTS = ["input_ids", "labels", "token_type_ids"]
+MODEL_INPUTS = ["input_ids", "mc_token_ids", "lm_labels", "mc_labels", "token_type_ids"]
+PADDED_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
 
 logger = logging.getLogger(__file__)
 
@@ -30,8 +30,8 @@ def pad_dataset(args, dataset, padding=0):
     """ Pad the dataset.
     This could be optimized by defining a Dataset class and padding at the batch level,
     but this is simpler. """
-    # max_l = max(len(x) for x in dataset["input_ids"])
-    max_l = args.max_len
+    max_l = max(len(x) for x in dataset["input_ids"])
+    # max_l = args.max_len
 
     for name in PADDED_INPUTS:
         dataset[name] = [x + [padding if name != "lm_labels" else -100] * (max_l - len(x)) for x in dataset[name]]
@@ -39,7 +39,7 @@ def pad_dataset(args, dataset, padding=0):
     return dataset
 
 
-def build_input_from_segments(persona, history, reply, vocab, labels=False, with_eos=True):
+def build_input_from_segments(persona, history, reply, vocab, lm_labels=False, with_eos=True):
     """ Build a sequence of input from 3 segments: persona, history and last reply. """
     bos, eos, speaker1, speaker2 = vocab[SPECIAL_TOKENS[:-1]]
     sequence = [[bos] + list(chain(*persona))] + \
@@ -52,9 +52,8 @@ def build_input_from_segments(persona, history, reply, vocab, labels=False, with
                                   2 else speaker1 for i, s in enumerate(sequence) for _ in s]
     instance["mc_token_ids"] = len(instance["input_ids"]) - 1
     instance["lm_labels"] = [-100] * len(instance["input_ids"])
-    if labels:
+    if lm_labels:
         instance["lm_labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
-
     return instance
 
 
@@ -74,12 +73,11 @@ def get_data_loaders(args, tokenizer, vocab):
                 for utterance in dialog["utterances"]:
                     history = utterance["history"][-(2 * args.max_history + 1):]
                     for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
-                        labels = bool(j == num_candidates - 1)
+                        lm_labels = bool(j == num_candidates - 1)
                         instance = build_input_from_segments(
-                            persona, history, candidate, vocab, labels)
+                            persona, history, candidate, vocab, lm_labels)
                         for input_name, input_array in instance.items():
-                            datasets[dataset_name][input_name].append(
-                                input_array)
+                            datasets[dataset_name][input_name].append(input_array)
                     datasets[dataset_name]["mc_labels"].append(num_candidates - 1)
                     datasets[dataset_name]["n_candidates"] = num_candidates
                 # permuted personalities
@@ -97,7 +95,8 @@ def get_data_loaders(args, tokenizer, vocab):
             tensor_datasets[dataset_name].append(tensor)
 
     logger.info("Build train and validation dataloaders")
-    train_dataset, valid_dataset = TensorDataset(*tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
+    train_dataset = TensorDataset(*tensor_datasets["train"])
+    valid_dataset = TensorDataset(*tensor_datasets["valid"])
     train_loader = DataLoader(train_dataset,
                               batch_size=args.train_batch_size,
                               num_workers=args.num_workers,
@@ -288,7 +287,7 @@ def main():
     parser.add_argument("--train_batch_size", type=int,
                         default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
-                        default=2, help="Batch size for validation")
+                        default=4, help="Batch size for validation")
     parser.add_argument("--num_workers", type=int,
                         default=8, help="Number of workers for DataLoader")
 
