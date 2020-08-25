@@ -278,6 +278,10 @@ def main():
     parser.add_argument("--name", type=str,
                         default="cm_kogpt2",
                         help="Model name for logging")
+    parser.add_argument("--lm_coef", type=float,
+                        default=1.0, help="LM loss coefficient")
+    parser.add_argument("--mc_coef", type=float, default=1.0,
+                        help="Multiple-choice loss coefficient")
 
     # Shared arguments for dataloader and training
     parser.add_argument('--max_len',
