@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
 
 from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
+import json
 
 
 SPECIAL_TOKENS = ["<s>", "</s>", "<usr>", "<sys>", "<pad>"]
@@ -254,7 +255,7 @@ def main():
                         default="cuda" if torch.cuda.is_available() else "cpu",
                         help="Device (cuda or cpu)")
     parser.add_argument("--dataset_path", type=str,
-                        default="dataset/sample.json",
+                        default="dataset/personachat_manual_translated.json",
                         help="Path of the dataset.")
     parser.add_argument("--dataset_cache", type=str,
                         default='./dataset_cache',
@@ -305,6 +306,18 @@ def main():
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering (top-p) before sampling (<=0.0: no filtering)")
     parser.add_argument("--no_sample", action='store_true', help="Set to use greedy decoding instead of sampling")
     parser.add_argument("--min_length", type=int, default=1, help="Minimum length of the output utterances")
+
+    # Evaluation
+    parser.add_argument('--chat_test',
+                        action='store_true',
+                        default=False,
+                        help='response generation on given user input')
+    parser.add_argument("--eval_dataset_path", type=str,
+                        default="eval/eval_merge.json",
+                        help="Path of the evaluation dataset.")
+    parser.add_argument('--num_eval_pp',
+                        type=int, default=10,
+                        help='The number of dialogue steps for the ping-pong test ')
 
     # Model configuration augments
     parser = CMPersonaChat.add_model_specific_args(parser)
@@ -374,7 +387,103 @@ def main():
             history = history[-(2 * args.max_history + 1):]
             out_text = detokenizer(vocab.to_tokens(out_ids))
             print(out_text)
+    
+    # Evaluation
+    if args.chat_test:
+        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+        model = CMPersonaChat.load_from_checkpoint(args.model_params)
+        model.to(args.device)
 
+        # 1) Test using pre-defined dialogues
+        json_f = open(args.eval_dataset_path, 'r', encoding='utf-8')
+        json_all_data = json.load(json_f)
+        
+        for key, value in json_all_data.items():
+            txt_w = open("{}_dialog_result.txt".format(key), mode='w', encoding="utf-8")
+            diag_index = 0
+            for Persona_Quest in value:    
+                diag_index = diag_index + 1
+                txt_w.write('Dialog {}\n'.format(diag_index))
+                persona_list = Persona_Quest['per']
+                personality_2 = list()
+                for sentence in persona_list:
+                    personality_2.append(vocab[tokenizer(sentence)])
+                    txt_w.write("Selected personality: %s\n" % sentence)   
+                    
+                for sentence in personality_2:                    
+                    print("Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
+                    
+                history = []        
+                for question in Persona_Quest['quest']:
+                    raw_text = question           
+                    history.append(vocab[tokenizer(raw_text)])
+                    with torch.no_grad():
+                        out_ids = sample_sequence(personality_2, history, vocab, model, args)
+                    history.append(out_ids)
+                    history = history[-(2 * args.max_history + 1):]
+                    out_text = detokenizer(vocab.to_tokens(out_ids))
+                    
+                    # write
+                    txt_w.write('>>> {}\n'.format(raw_text))
+                    txt_w.write("CookieMonster> {}\n".format(out_text))
+                    print(">>> ", raw_text)
+                    print("CookieMonster> ", out_text)
+                txt_w.write("\n")
+                print("")            
+
+        # 2) Ping-pong test
+        #txt_w = open("pp_dialog_result.txt", mode='w', encoding="utf-8")
+        print("Dialog ping-pong test")
+        txt_w.write('Dialog ping-pong test\n')
+
+        dataset = get_dataset(
+            tokenizer, vocab, args.dataset_path, args.dataset_cache)
+        personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
+
+		# CM1 personality
+        personality = random.choice(personalities)
+        for sentence in personality:
+            print("CM1 Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
+            txt_w.write('CM1 Selected personality: {}\n'.format(detokenizer(vocab.to_tokens(sentence))))
+        history = []
+
+		# CM2 personality
+        personality2 = random.choice(personalities)
+        for sentence in personality2:
+            print("CM2 Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
+            txt_w.write('CM2 Selected personality: {}\n'.format(detokenizer(vocab.to_tokens(sentence))))
+        history2 = []
+
+        # init
+        raw_text = "안녕하세요?"
+        #print(">>> ", raw_text)
+        #txt_w.write('>>> {}\n'.format(raw_text))
+        history.append(vocab[tokenizer(raw_text)])
+        num = 0
+		# test
+        while num <= args.num_eval_pp:
+			# sys1
+            with torch.no_grad():
+                out_ids = sample_sequence(personality, history, vocab, model, args)
+            history.append(out_ids)
+            history2.append(out_ids)
+            history = history[-(2 * args.max_history + 1):]
+            out_text = detokenizer(vocab.to_tokens(out_ids))
+            print("CookieMonster1> ", out_text)
+            txt_w.write('CookieMonster1> {}\n'.format(out_text))
+
+            #time.sleep(1)
+
+			# sys1
+            with torch.no_grad():
+                out_ids = sample_sequence(personality2, history2, vocab, model, args)
+            history2.append(out_ids)
+            history.append(out_ids)
+            history2 = history2[-(2 * args.max_history + 1):]
+            out_text = detokenizer(vocab.to_tokens(out_ids))
+            print("CookieMonster2> ", out_text)
+            txt_w.write('CookieMonster2> {}\n'.format(out_text))
+            num = num + 1
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
