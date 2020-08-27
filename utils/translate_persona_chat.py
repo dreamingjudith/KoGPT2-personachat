@@ -10,7 +10,7 @@ from googletrans import Translator
 
 
 def translate_sentence_batch(input_batch):
-    time.sleep(2)
+    time.sleep(2) # Ban 당할 위험 때문에 번역당 2초씩 슬립
     translator = Translator()
     translations = translator.translate(input_batch, src='en', dest='ko')
 
@@ -37,7 +37,7 @@ def translate_persona_chat(dataset_mod):
     entryset_length = len(dataset_mod)
     dataset_translated = list()
 
-    for entry in dataset_mod[:]:  # 여기 있는 인덱스로 앞에서 몇 개 번역해 넣을 건지 조절
+    for entry in dataset_mod[:]:  # 여기 있는 인덱스로 앞에서 몇 개 번역해 넣을 건지 조절, 약 1000개 단위로 여러개 파일 구동, translate_persona_chat_1001, 2001, ...
         entry_dict = dict()
         personality = entry['personality']
         utterances = entry['utterances']
@@ -62,12 +62,9 @@ def translate_persona_chat(dataset_mod):
 
         global ii
         ii += 1
-        #print (ii)
 
         filename = str(ii)
-        write_persona_chat(filename +'.json',entry_dict)
-
-    #assert len(dataset_translated) == entryset_length
+        write_persona_chat(filename +'.json',entry_dict) # 파일 만들기
 
     return dataset_translated
 
@@ -81,15 +78,9 @@ def main():
         persona_train, persona_valid = read_persona_chat(args.file)
     except:
         args = ""
-        #TEST_PATH = 's1.json'
         TEST_PATH = 'personachat_self_original.json'
-        persona_train, persona_valid = read_persona_chat(TEST_PATH)
-    
+        persona_train, persona_valid = read_persona_chat(TEST_PATH)    
     train_translated = translate_persona_chat(persona_train)
-    #write_persona_chat(TEST_PATH,train_translated)
-
-    #pdb.set_trace()
-
 
 if __name__ == "__main__":
     ii = 0
