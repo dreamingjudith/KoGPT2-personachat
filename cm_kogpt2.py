@@ -456,8 +456,8 @@ def main():
 
         # init
         raw_text = "안녕하세요?"
-        #print(">>> ", raw_text)
-        #txt_w.write('>>> {}\n'.format(raw_text))
+        print("CookieMonster2> ", raw_text)
+        txt_w.write('CookieMonster2> {}\n'.format(raw_text))
         history.append(vocab[tokenizer(raw_text)])
         num = 0
 		# test
