@@ -139,11 +139,11 @@ dmypy.json
 
 ### VisualStudioCode ###
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-*.code-workspace
+# !.vscode/settings.json
+# !.vscode/tasks.json
+# !.vscode/launch.json
+# !.vscode/extensions.json
+# *.code-workspace
 
 ### VisualStudioCode Patch ###
 # Ignore all local history of files
@@ -155,4 +155,7 @@ dmypy.json
 runs/
 dataset_cache_*
 lightning_logs/
-cm_model_chp
+cm_model_chp/
+logs/
+dataset/
+!dataset/sample.json
