@@ -1,4 +1,4 @@
-name: cookie_monster
+name: cm
 channels:
   - pytorch
   - defaults
