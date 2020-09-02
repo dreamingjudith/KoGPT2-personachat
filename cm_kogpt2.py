@@ -328,10 +328,10 @@ def main():
     if args.train:
         tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
-        logger = TensorBoardLogger("logs", name=args.name)
+        tb_logger = TensorBoardLogger("logs", name=args.name)
 
         checkpoint_callback = ModelCheckpoint(
-            filepath='{}/checkpoints/{}'.format(logger.log_dir, '{epoch:02d}-{val_loss:.4f}'),
+            filepath='{}/checkpoints/{}'.format(tb_logger.log_dir, '{epoch:02d}-{val_loss:.4f}'),
             verbose=True,
             save_last=True,
             save_top_k=10,
@@ -347,7 +347,7 @@ def main():
             trainer = Trainer(resume_from_checkpoint=args.model_params,
                               checkpoint_callback=checkpoint_callback,
                               gradient_clip_val=1.0,
-                              logger=logger)
+                              logger=tb_logger)
             trainer.fit(model, train_loader, val_loader)
         else:
             model = CMPersonaChat(args)
@@ -358,11 +358,11 @@ def main():
                 checkpoint_callback=checkpoint_callback,
                 weights_save_path=os.getcwd(),
                 gradient_clip_val=1.0,
-                logger=logger)
+                logger=tb_logger)
             trainer.fit(model, train_loader, val_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
-    if args.chat:
+    elif args.chat:
         tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         dataset = get_dataset(
             tokenizer, vocab, args.dataset_path, args.dataset_cache)
@@ -389,7 +389,7 @@ def main():
             print(out_text)
 
     # Evaluation
-    if args.chat_test:
+    elif args.chat_test:
         tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         model = CMPersonaChat.load_from_checkpoint(args.model_params)
         model.to(args.device)
