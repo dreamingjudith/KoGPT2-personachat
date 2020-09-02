@@ -1,39 +1,23 @@
 import argparse
 import logging
+import os
+import random
 from collections import defaultdict
 from itertools import chain
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset
-
-from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
-
-# Model for fine-tuning
+import torch.nn.functional as F
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.core.lightning import LightningModule
+from pytorch_lightning.loggers import TensorBoardLogger
+from torch.utils.data import DataLoader, TensorDataset
 from transformers.optimization import AdamW, get_cosine_schedule_with_warmup
-# Chat test
-import random
-import torch.nn.functional as F
+
+from utils import get_dataset, get_kogpt2_model, get_kogpt2_tokenizer
+import json
 
 
-#################################################################
-# How to use
-"""
-1. Train
-(optional : --restore --train_batch_size=4 --max_epochs=1 --max_len=768 etc)
-$> python cm_kogpt2.py --train --device=cpu  
-$> python cm_kogpt2.py --train --device=cuda --gpus=1
-
-2. Test
-(optional : --top_k=0 --top_p=0.88 etc)
-$> python cm_kogpt2.py --chat --device=cpu
-$> python cm_kogpt2.py --chat --device=cuda --gpus=1
-"""
-
-#################################################################
-# Definition for Special tokens
 SPECIAL_TOKENS = ["<s>", "</s>", "<usr>", "<sys>", "<pad>"]
 ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<s>', 'eos_token': '</s>', 'pad_token': '<pad>',
                          'additional_special_tokens': ['<usr>', '<sys>']}
@@ -43,8 +27,6 @@ PADDED_INPUTS = ["input_ids", "labels", "token_type_ids"]
 logger = logging.getLogger(__file__)
 
 
-#################################################################
-# Dataset-Loader functions
 def pad_dataset(args, dataset, padding=0):
     """ Pad the dataset.
     This could be optimized by defining a Dataset class and padding at the batch level,
@@ -273,7 +255,7 @@ def main():
                         default="cuda" if torch.cuda.is_available() else "cpu",
                         help="Device (cuda or cpu)")
     parser.add_argument("--dataset_path", type=str,
-                        default="dataset/sample.json",
+                        default="dataset/personachat_manual_translated.json",
                         help="Path of the dataset.")
     parser.add_argument("--dataset_cache", type=str,
                         default='./dataset_cache',
@@ -284,6 +266,10 @@ def main():
                         help="Number of permutations of personality sentences")
     parser.add_argument("--max_history", type=int, default=2,
                         help="Number of previous exchanges to keep in history")
+    parser.add_argument("--name", type=str,
+                        default="cm_kogpt2",
+                        help="Model name for logging")
+
     # Shared arguments for dataloader and training
     parser.add_argument('--max_len',
                         type=int,
@@ -292,9 +278,10 @@ def main():
     parser.add_argument("--train_batch_size", type=int,
                         default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
-                        default=4, help="Batch size for validation")
+                        default=2, help="Batch size for validation")
     parser.add_argument("--num_workers", type=int,
-                        default=4, help="Number of workers for DataLoader")
+                        default=8, help="Number of workers for DataLoader")
+
     # Select train/inference
     parser.add_argument('--train',
                         action='store_true',
@@ -312,11 +299,25 @@ def main():
                         type=str,
                         default='cm_model_chp/model_last.ckpt',
                         help='model binary for starting chat')
-    parser.add_argument("--temperature", type=int, default=0.7, help="Sampling softmax temperature")
+
+    # Additional arguments for chatting
+    parser.add_argument("--temperature", type=float, default=0.7, help="Sampling softmax temperature")
     parser.add_argument("--top_k", type=int, default=0, help="Filter top-k tokens before sampling (<=0: no filtering)")
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering (top-p) before sampling (<=0.0: no filtering)")
     parser.add_argument("--no_sample", action='store_true', help="Set to use greedy decoding instead of sampling")
     parser.add_argument("--min_length", type=int, default=1, help="Minimum length of the output utterances")
+
+    # Evaluation
+    parser.add_argument('--chat_test',
+                        action='store_true',
+                        default=False,
+                        help='response generation on given user input')
+    parser.add_argument("--eval_dataset_path", type=str,
+                        default="eval/eval_merge.json",
+                        help="Path of the evaluation dataset.")
+    parser.add_argument('--num_eval_pp',
+                        type=int, default=10,
+                        help='The number of dialogue steps for the ping-pong test ')
 
     # Model configuration augments
     parser = CMPersonaChat.add_model_specific_args(parser)
@@ -325,31 +326,39 @@ def main():
 
     # Fine-tuning KoGPT2 for the PersonaChat
     if args.train:
+        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+        train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
+        logger = TensorBoardLogger("logs", name=args.name)
+
         checkpoint_callback = ModelCheckpoint(
-            filepath='cm_model_chp/{epoch:02d}',
+            filepath='{}/checkpoints/{}'.format(logger.log_dir, '{epoch:02d}-{val_loss:.4f}'),
             verbose=True,
             save_last=True,
-            monitor='loss',
+            save_top_k=10,
+            monitor='val_loss',
             mode='min',
             prefix='model_'
         )
-
-        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
-        train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
 
         if args.restore:
             model = CMPersonaChat.load_from_checkpoint(args.model_params)
             model.to(args.device)
             model.train()
-            trainer = Trainer(resume_from_checkpoint=args.model_params, checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
-            trainer.fit(model, train_loader)
+            trainer = Trainer(resume_from_checkpoint=args.model_params,
+                              checkpoint_callback=checkpoint_callback,
+                              gradient_clip_val=1.0,
+                              logger=logger)
+            trainer.fit(model, train_loader, val_loader)
         else:
             model = CMPersonaChat(args)
             model.to(args.device)
             model.train()
             trainer = Trainer.from_argparse_args(
                 args,
-                checkpoint_callback=checkpoint_callback, gradient_clip_val=1.0)
+                checkpoint_callback=checkpoint_callback,
+                weights_save_path=os.getcwd(),
+                gradient_clip_val=1.0,
+                logger=logger)
             trainer.fit(model, train_loader, val_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
@@ -378,6 +387,103 @@ def main():
             history = history[-(2 * args.max_history + 1):]
             out_text = detokenizer(vocab.to_tokens(out_ids))
             print(out_text)
+
+    # Evaluation
+    if args.chat_test:
+        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+        model = CMPersonaChat.load_from_checkpoint(args.model_params)
+        model.to(args.device)
+
+        # 1) Test using pre-defined dialogues
+        json_f = open(args.eval_dataset_path, 'r', encoding='utf-8')
+        json_all_data = json.load(json_f)
+
+        for key, value in json_all_data.items():
+            txt_w = open("{}_dialog_result.txt".format(key), mode='w', encoding="utf-8")
+            diag_index = 0
+            for Persona_Quest in value:    
+                diag_index = diag_index + 1
+                txt_w.write('Dialog {}\n'.format(diag_index))
+                persona_list = Persona_Quest['per']
+                personality_2 = list()
+                for sentence in persona_list:
+                    personality_2.append(vocab[tokenizer(sentence)])
+                    txt_w.write("Selected personality: %s\n" % sentence)   
+
+                for sentence in personality_2:                    
+                    print("Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
+
+                history = []        
+                for question in Persona_Quest['quest']:
+                    raw_text = question           
+                    history.append(vocab[tokenizer(raw_text)])
+                    with torch.no_grad():
+                        out_ids = sample_sequence(personality_2, history, vocab, model, args)
+                    history.append(out_ids)
+                    history = history[-(2 * args.max_history + 1):]
+                    out_text = detokenizer(vocab.to_tokens(out_ids))
+
+                    # write
+                    txt_w.write('>>> {}\n'.format(raw_text))
+                    txt_w.write("CookieMonster> {}\n".format(out_text))
+                    print(">>> ", raw_text)
+                    print("CookieMonster> ", out_text)
+                txt_w.write("\n")
+                print("")            
+
+        # 2) Ping-pong test
+        # txt_w = open("pp_dialog_result.txt", mode='w', encoding="utf-8")
+        print("Dialog ping-pong test")
+        txt_w.write('Dialog ping-pong test\n')
+
+        dataset = get_dataset(
+            tokenizer, vocab, args.dataset_path, args.dataset_cache)
+        personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
+
+        # CM1 personality
+        personality = random.choice(personalities)
+        for sentence in personality:
+            print("CM1 Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
+            txt_w.write('CM1 Selected personality: {}\n'.format(detokenizer(vocab.to_tokens(sentence))))
+        history = []
+
+        # CM2 personality
+        personality2 = random.choice(personalities)
+        for sentence in personality2:
+            print("CM2 Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
+            txt_w.write('CM2 Selected personality: {}\n'.format(detokenizer(vocab.to_tokens(sentence))))
+        history2 = []
+
+        # init
+        raw_text = "안녕하세요?"
+        print("CookieMonster2> ", raw_text)
+        txt_w.write('CookieMonster2> {}\n'.format(raw_text))
+        history.append(vocab[tokenizer(raw_text)])
+        num = 0
+        # test
+        while num <= args.num_eval_pp:
+            # sys1
+            with torch.no_grad():
+                out_ids = sample_sequence(personality, history, vocab, model, args)
+            history.append(out_ids)
+            history2.append(out_ids)
+            history = history[-(2 * args.max_history + 1):]
+            out_text = detokenizer(vocab.to_tokens(out_ids))
+            print("CookieMonster1> ", out_text)
+            txt_w.write('CookieMonster1> {}\n'.format(out_text))
+
+            #time.sleep(1)
+
+            # sys1
+            with torch.no_grad():
+                out_ids = sample_sequence(personality2, history2, vocab, model, args)
+            history2.append(out_ids)
+            history.append(out_ids)
+            history2 = history2[-(2 * args.max_history + 1):]
+            out_text = detokenizer(vocab.to_tokens(out_ids))
+            print("CookieMonster2> ", out_text)
+            txt_w.write('CookieMonster2> {}\n'.format(out_text))
+            num = num + 1
 
 
 if __name__ == "__main__":
