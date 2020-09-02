@@ -37,7 +37,7 @@ $ conda env create -f environment.yml
 $ conda activate cm
 $ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --max_epochs=3 --dataset_path dataset/sample.json
 ## OR you can restore model checkpoint
-$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --restore --max_epochs=3 --dataset_path dataset/sample.json
+$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --restore --max_epochs=3 --dataset_path dataset/sample.json --model_params logs/cm_kogpt2/version_0/checkpoints/model_last.ckpt
 ```
 
 더 많은 종류의 하이퍼파라미터 세팅을 확인하고 싶을 땐 아래와 같이 입력하세요.
