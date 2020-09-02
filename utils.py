@@ -12,8 +12,6 @@ import torch
 from gluonnlp.data import SentencepieceTokenizer, SentencepieceDetokenizer
 from transformers import GPT2Config, GPT2LMHeadModel
 
-from tools.example_entry import EXAMPLE_ENTRY
-
 
 logger = logging.getLogger(__file__)
 
@@ -50,7 +48,7 @@ def _download(url, filename, chksum, cachedir='~/kogpt2/'):
     return file_path
 
 
-def get_kogpt2_model(cachedir='~/kogpt2/'):
+def get_kogpt2_model(filepath, cachedir='~/kogpt2/'):
     """Get KoGPT2 model after downloading"""
 
     model_info = {
@@ -72,10 +70,14 @@ def get_kogpt2_model(cachedir='~/kogpt2/'):
         "activation_function": "gelu"
     }
 
-    model_path = _download(model_info['url'],
-                           model_info['fname'],
-                           model_info['chksum'],
-                           cachedir=cachedir)
+    if filepath:
+        logger.info("Loading {}".format(filepath))
+        model_path = filepath
+    else:
+        model_path = _download(model_info['url'],
+                               model_info['fname'],
+                               model_info['chksum'],
+                               cachedir=cachedir)
 
     model = GPT2LMHeadModel.from_pretrained(pretrained_model_name_or_path=None,
                                             config=GPT2Config.from_dict(kogpt2_config),

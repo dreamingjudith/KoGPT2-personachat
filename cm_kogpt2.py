@@ -113,7 +113,7 @@ class CMPersonaChat(LightningModule):
     def __init__(self, hparams, *args):
         super(CMPersonaChat, self).__init__()
         self.hparams = hparams
-        self.kogpt2 = get_kogpt2_model()  # for inference. but why kogpt2 model isn't applied device option?
+        self.kogpt2 = get_kogpt2_model(hparams.model_params)
 
     @staticmethod
     def add_model_specific_args(parent_parser):
@@ -324,9 +324,12 @@ def main():
     parser = Trainer.add_argparse_args(parser)
     args = parser.parse_args()
 
+    tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
+    model = CMPersonaChat(args)
+    model.to(args.device)
+
     # Fine-tuning KoGPT2 for the PersonaChat
     if args.train:
-        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         train_loader, val_loader = get_data_loaders(args, tokenizer, vocab)
         tb_logger = TensorBoardLogger("logs", name=args.name)
 
@@ -341,33 +344,24 @@ def main():
         )
 
         if args.restore:
-            model = CMPersonaChat.load_from_checkpoint(args.model_params)
-            model.to(args.device)
-            model.train()
             trainer = Trainer(resume_from_checkpoint=args.model_params,
                               checkpoint_callback=checkpoint_callback,
                               gradient_clip_val=1.0,
                               logger=tb_logger)
-            trainer.fit(model, train_loader, val_loader)
         else:
-            model = CMPersonaChat(args)
-            model.to(args.device)
-            model.train()
             trainer = Trainer.from_argparse_args(
                 args,
                 checkpoint_callback=checkpoint_callback,
                 weights_save_path=os.getcwd(),
                 gradient_clip_val=1.0,
                 logger=tb_logger)
-            trainer.fit(model, train_loader, val_loader)
+        model.train()
+        trainer.fit(model, train_loader, val_loader)
         logging.info('best model path {}'.format(checkpoint_callback.best_model_path))
 
     elif args.chat:
-        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
         dataset = get_dataset(
             tokenizer, vocab, args.dataset_path, args.dataset_cache)
-        model = CMPersonaChat.load_from_checkpoint(args.model_params)
-        model.to(args.device)
 
         personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
         personality = random.choice(personalities)
@@ -390,10 +384,6 @@ def main():
     
     # Evaluation
     elif args.chat_test:
-        tokenizer, detokenizer, vocab = get_kogpt2_tokenizer()
-        model = CMPersonaChat.load_from_checkpoint(args.model_params)
-        model.to(args.device)
-
         # 1) Test using pre-defined dialogues
         json_f = open(args.eval_dataset_path, 'r', encoding='utf-8')
         json_all_data = json.load(json_f)
@@ -440,14 +430,14 @@ def main():
             tokenizer, vocab, args.dataset_path, args.dataset_cache)
         personalities = [dialog["personality"] for dataset in dataset.values() for dialog in dataset]
 
-		# CM1 personality
+        # CM1 personality
         personality = random.choice(personalities)
         for sentence in personality:
             print("CM1 Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
             txt_w.write('CM1 Selected personality: {}\n'.format(detokenizer(vocab.to_tokens(sentence))))
         history = []
 
-		# CM2 personality
+        # CM2 personality
         personality2 = random.choice(personalities)
         for sentence in personality2:
             print("CM2 Selected personality: %s" % detokenizer(vocab.to_tokens(sentence)))
@@ -460,9 +450,9 @@ def main():
         txt_w.write('CookieMonster2> {}\n'.format(raw_text))
         history.append(vocab[tokenizer(raw_text)])
         num = 0
-		# test
+        # test
         while num <= args.num_eval_pp:
-			# sys1
+            # sys1
             with torch.no_grad():
                 out_ids = sample_sequence(personality, history, vocab, model, args)
             history.append(out_ids)
@@ -474,7 +464,7 @@ def main():
 
             #time.sleep(1)
 
-			# sys1
+            # sys1
             with torch.no_grad():
                 out_ids = sample_sequence(personality2, history2, vocab, model, args)
             history2.append(out_ids)
@@ -484,6 +474,7 @@ def main():
             print("CookieMonster2> ", out_text)
             txt_w.write('CookieMonster2> {}\n'.format(out_text))
             num = num + 1
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
