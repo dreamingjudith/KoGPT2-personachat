@@ -17,7 +17,6 @@ $ conda env create -f environment.yml
 - gluonnlp (0.10.0)
 - mxnet* (1.6.0)
 - pytorch** (1.6.0)
-- pytorch-ignite (0.4.1)
 - pytorch-lightning (0.8.5)
 - sentencepiece (0.1.92)
 - tensorboardX (1.8)
