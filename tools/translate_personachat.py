@@ -125,6 +125,7 @@ def translate_personachat(args):
             with open(filename, "w") as f:
                 json.dump(translated_dict, f, ensure_ascii=False)
 
+            save_num += 1
             sleep(10)  # googletrans에서 API 차단을 막기 위해 10초 sleep
 
 
@@ -132,7 +133,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-path", type=str, required=True, help="personachat_self_original.json filepath")
     parser.add_argument("--output-dir", type=str, required=True, help="Save path of translated dataset")
-    parser.add_argument("--max-try", type=int, default=10, help="How many times retry if translation failed")
+    parser.add_argument("--max-try", type=int, default=10, help="How many times to retry if translation failed")
     args = parser.parse_args()
 
     translate_personachat(args)
