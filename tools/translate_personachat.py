@@ -1,5 +1,6 @@
 import argparse
 import json
+from multiprocessing import Pool
 import os
 from time import sleep
 
@@ -34,9 +35,11 @@ def translate_batch(translator, input_batch):
         return ret
 
 
-def translate_single_example(translator, example):
+def translate_single_example(example):
     """하나의 training/evaluation example 번역하기
     """
+
+    translator = Translator()
 
     translated_dict = {
         "personality": None,
@@ -84,7 +87,6 @@ def check_saved_file_number(save_dir):
 
 def translate_personachat(args):
     dataset = read_personachat(args.input_path)
-    translator = Translator()
     count = 0
 
     for mode in ['train', 'valid']:
@@ -107,12 +109,12 @@ def translate_personachat(args):
         for example in tqdm(dataset[mode][save_num:], desc=f'Total {mode} examples'):
             for try_num in range(args.max_try):
                 try:
-                    translated_dict = translate_single_example(translator, example)
+                    translated_dict = translate_single_example(example)
+                    break
                 except AttributeError:
-                    print("Connection error occured. Sleeping 30 seconds...")
-                    sleep(30)
+                    print(f"Connection error occured. Sleeping {args.wait_time} seconds...")
+                    sleep(args.wait_time)
                     print("Retrying")
-                break
 
             if try_num == args.max_try:
                 raise RuntimeError("Translation failed. Try later.")
@@ -134,6 +136,7 @@ def main():
     parser.add_argument("--input-path", type=str, required=True, help="personachat_self_original.json filepath")
     parser.add_argument("--output-dir", type=str, required=True, help="Save path of translated dataset")
     parser.add_argument("--max-try", type=int, default=10, help="How many times to retry if translation failed")
+    parser.add_argument("--wait-time", type=int, default=30, help="Seconds to wait if translation is failed")
     args = parser.parse_args()
 
     translate_personachat(args)
