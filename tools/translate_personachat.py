@@ -106,18 +106,19 @@ def translate_personachat(args):
         # +1 해서 다음 순서 읽을 준비하기
         save_num += 1
 
+        translated_dict = None
+
         for example in tqdm(dataset[mode][save_num:], desc=f'Total {mode} examples'):
-            for try_num in range(args.max_try):
+            for try_num in range(1, args.max_try+1):
                 try:
                     translated_dict = translate_single_example(example)
                     break
                 except AttributeError:
+                    if try_num == args.max_try:
+                        raise
                     print(f"Connection error occured. Sleeping {args.wait_time} seconds...")
                     sleep(args.wait_time)
-                    print("Retrying")
-
-            if try_num == args.max_try:
-                raise RuntimeError("Translation failed. Try later.")
+                    print(f"Retrying ({try_num})")
 
             if translated_dict is None:
                 raise ValueError("translated_dict is None.")
@@ -128,7 +129,7 @@ def translate_personachat(args):
                 json.dump(translated_dict, f, ensure_ascii=False)
 
             save_num += 1
-            sleep(10)  # googletrans에서 API 차단을 막기 위해 10초 sleep
+            sleep(5)  # googletrans에서 API 차단을 막기 위해 5초 sleep
 
 
 def main():
