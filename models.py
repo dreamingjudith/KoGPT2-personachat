@@ -52,15 +52,15 @@ class CMPersonaChat(LightningModule):
         effective_batch_size = dataset.batch_size * self.trainer.accumulate_grad_batches * num_devices
         return (dataset_size // effective_batch_size) * self.trainer.max_epochs
 
-    def forward(self, inputs, token_type_ids):
-        output, *_ = self.kogpt2(inputs, token_type_ids=token_type_ids)
-        return output
+    def forward(self, inputs, token_type_ids, labels=None):
+        outputs = self.kogpt2(inputs, token_type_ids=token_type_ids, labels=labels)
+        return outputs
 
     def training_step(self, batch, batch_idx):
         token_ids, label, mask = batch
         # forward: input(batch,max_sentence_length) -> output(batch_size, max_sentence_length,vocab)
         # e.g. (4,768) -> (4,768,50000)
-        outputs = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
+        outputs = self(token_ids, token_type_ids=mask, labels=label)
         self.log("loss/train_loss", outputs.loss)
 
         return outputs.loss
@@ -68,7 +68,7 @@ class CMPersonaChat(LightningModule):
     def validation_step(self, batch, batch_idx):
         # batch = tuple(input_tensor.to(self.hparams.device) for input_tensor in batch)
         token_ids, label, mask = batch
-        outputs = self.kogpt2(token_ids, token_type_ids=mask, labels=label)
+        outputs = self(token_ids, token_type_ids=mask, labels=label)
         self.log("loss/val_loss", outputs.loss)
 
         return outputs.loss
