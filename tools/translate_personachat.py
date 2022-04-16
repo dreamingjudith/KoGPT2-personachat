@@ -2,21 +2,54 @@ import argparse
 import json
 import os
 from time import sleep
-
-from googletrans import Translator
 from tqdm import tqdm
+
+
+class BaseTranslator(object):
+    def __init__(self):
+        pass
+
+    def translate(self):
+        pass
+
+
+class GoogleTranslator(BaseTranslator):
+    """
+    Translator class using googletrans module
+    Translates single sentence
+    """
+    def __init__(self, src='en', dst='ko'):
+        from googletrans import Translator
+        self.src = src
+        self.dst = dst
+        self.translator = Translator()
+
+    def translate(self, text):
+        translated = self.translator.translate(text, src=self.src, dest=self.dst)
+        return translated.text
+
+
+class KakaoTranslator(BaseTranslator):
+    """
+    Translator class using kakaotrans module
+    Translates single sentence
+    But this module often fails because of API limit
+    """
+    def __init__(self, src='en', dst='kr'):
+        from kakaotrans import Translator
+        self.src = src
+        self.dst = dst
+        self.translator = Translator()
+
+    def translate(self, text):
+        return self.translator.translate(text, src=self.src, tgt=self.dst)
 
 
 def read_personachat(filepath):
     with open(filepath, 'r') as f:
         dataset = json.load(f)
-    
+
     return dataset
-
-
-def translate_sentence(translator, input_line):
-    translated = translator.translate(input_line, src='en', dest='ko')
-    return translated.text
 
 
 def translate_batch(translator, input_batch):
@@ -25,7 +58,7 @@ def translate_batch(translator, input_batch):
     for line in input_batch:
         # googletrans가 3.X부터 batch translation이 제대로 되지 않아
         # line별로 번역한 뒤 append하는 방식으로 변경함
-        translated_text = translate_sentence(translator, line)
+        translated_text = translator.translate(line)
         ret.append(translated_text)
 
     if len(ret) != len(input_batch):
@@ -34,11 +67,16 @@ def translate_batch(translator, input_batch):
         return ret
 
 
-def translate_single_example(example):
+def translate_single_example(translator_type, example):
     """하나의 training/evaluation example 번역하기
     """
 
-    translator = Translator()
+    if translator_type == 'google':
+        translator = GoogleTranslator()
+    elif translator_type == 'kakao':
+        translator = KakaoTranslator()
+    else:
+        raise ValueError(f"Unsupported translator type: {translator_type}")
 
     translated_dict = {
         "personality": None,
@@ -110,7 +148,7 @@ def translate_personachat(args):
         for example in tqdm(dataset[mode][save_num:], desc=f'Total {mode} examples'):
             for try_num in range(1, args.max_try+1):
                 try:
-                    translated_dict = translate_single_example(example)
+                    translated_dict = translate_single_example(args.type, example)
                     break
                 except AttributeError:
                     if try_num == args.max_try:
@@ -137,6 +175,10 @@ def main():
     parser.add_argument("--output-dir", type=str, required=True, help="Save path of translated dataset")
     parser.add_argument("--max-try", type=int, default=10, help="How many times to retry if translation failed")
     parser.add_argument("--wait-time", type=int, default=30, help="Seconds to wait if translation is failed")
+    parser.add_argument("--type", type=str,
+                        choices=['google', 'kakao'],
+                        default='google',
+                        help='Translator service provider')
     args = parser.parse_args()
 
     translate_personachat(args)
