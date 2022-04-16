@@ -1,129 +1,59 @@
-import hashlib
 import json
 import logging
 import os
-import requests
-import socket
-import sys
-from datetime import datetime
+from collections import defaultdict
+from itertools import chain
 
-import gluonnlp as nlp
 import torch
-from gluonnlp.data import SentencepieceTokenizer, SentencepieceDetokenizer
-from transformers import GPT2Config, GPT2LMHeadModel
+from torch.utils.data import DataLoader, TensorDataset
+from transformers import GPT2LMHeadModel, PreTrainedTokenizerFast
 
-from tools.example_entry import EXAMPLE_ENTRY
-
+from constants import MODEL_INPUTS, PADDED_INPUTS, SPECIAL_TOKENS
 
 logger = logging.getLogger(__file__)
 
 
-def _download(url, filename, chksum, cachedir='~/kogpt2/'):
-    f_cachedir = os.path.expanduser(cachedir)
-    os.makedirs(f_cachedir, exist_ok=True)
-    file_path = os.path.join(f_cachedir, filename)
-    if os.path.isfile(file_path):
-        if hashlib.md5(open(file_path,
-                            'rb').read()).hexdigest()[:10] == chksum:
-            print('using cached model')
-            return file_path
-    with open(file_path, 'wb') as f:
-        response = requests.get(url, stream=True)
-        total = response.headers.get('content-length')
+def pad_dataset(args, dataset, padding=0):
+    """ Pad the dataset.
+    This could be optimized by defining a Dataset class and padding at the batch level,
+    but this is simpler. """
+    max_l = min(args.max_len, max(len(x) for x in dataset["input_ids"]))
 
-        if total is None:
-            f.write(response.content)
-        else:
-            downloaded = 0
-            total = int(total)
-            for data in response.iter_content(
-                    chunk_size=max(int(total / 1000), 1024 * 1024)):
-                downloaded += len(data)
-                f.write(data)
-                done = int(50 * downloaded / total)
-                sys.stdout.write('\r[{}{}]'.format('█' * done,
-                                                   '.' * (50 - done)))
-                sys.stdout.flush()
-    sys.stdout.write('\n')
-    assert chksum == hashlib.md5(open(
-        file_path, 'rb').read()).hexdigest()[:10], 'corrupted file!'
-    return file_path
+    for name in PADDED_INPUTS:
+        dataset[name] = [x + [padding if name != "labels" else -100] * (max_l - len(x)) if len(x) < args.max_len else x[:args.max_len] for x in dataset[name]]
+
+    return dataset
 
 
-def get_kogpt2_model(cachedir='~/kogpt2/'):
-    """Get KoGPT2 model after downloading"""
+def build_input_from_segments(persona, history, reply, tokenizer, labels=False, with_eos=True):
+    """ Build a sequence of input from 3 segments: persona, history and last reply. """
+    bos, eos, speaker1, speaker2 = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[:-1])
+    sequence = [[bos] + list(chain(*persona))] + \
+        history + [reply + ([eos] if with_eos else [])]
+    sequence = [sequence[0]] + [[speaker2 if (len(sequence)-i) %
+                                 2 else speaker1] + s for i, s in enumerate(sequence[1:])]
+    instance = {}
+    instance["input_ids"] = list(chain(*sequence))
+    instance["token_type_ids"] = [speaker2 if i %
+                                  2 else speaker1 for i, s in enumerate(sequence) for _ in s]
+    instance["labels"] = [-100] * len(instance["input_ids"])
+    if labels:
+        instance["labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
 
-    model_info = {
-        'url':
-        'https://kobert.blob.core.windows.net/models/kogpt2/pytorch/pytorch_kogpt2_676e9bcfa7.params',
-        'fname': 'pytorch_kogpt2_676e9bcfa7.params',
-        'chksum': '676e9bcfa7'
-    }
-
-    kogpt2_config = {
-        "initializer_range": 0.02,
-        "layer_norm_epsilon": 1e-05,
-        "n_ctx": 1024,
-        "n_embd": 768,
-        "n_head": 12,
-        "n_layer": 12,
-        "n_positions": 1024,
-        "vocab_size": 50000,
-        "activation_function": "gelu"
-    }
-
-    model_path = _download(model_info['url'],
-                           model_info['fname'],
-                           model_info['chksum'],
-                           cachedir=cachedir)
-
-    model = GPT2LMHeadModel.from_pretrained(pretrained_model_name_or_path=None,
-                                            config=GPT2Config.from_dict(kogpt2_config),
-                                            state_dict=torch.load(model_path))
-    model.eval()
-
-    return model
+    return instance
 
 
-def get_kogpt2_tokenizer(cachedir='~/kogpt2/'):
-    """Get KoGPT2 Tokenizer after downloading"""
-
-    vocab_info = {
-        'url':
-        'https://kobert.blob.core.windows.net/models/kogpt2/tokenizer/kogpt2_news_wiki_ko_cased_818bfa919d.spiece',
-        'fname': 'kogpt2_news_wiki_ko_cased_818bfa919d.spiece',
-        'chksum': '818bfa919d'
-    }
-
-    vocab_path = _download(vocab_info['url'],
-                           vocab_info['fname'],
-                           vocab_info['chksum'],
-                           cachedir=cachedir)
-
-    tokenizer = SentencepieceTokenizer(vocab_path)
-    detokenizer = SentencepieceDetokenizer(vocab_path)
-    vocab = nlp.vocab.BERTVocab.from_sentencepiece(vocab_path,
-                                                   mask_token=None,
-                                                   sep_token=None,
-                                                   cls_token=None,
-                                                   unknown_token='<unk>',
-                                                   padding_token='<pad>',
-                                                   bos_token='<s>',
-                                                   eos_token='</s>')
-
-    return tokenizer, detokenizer, vocab
-
-
-def get_dataset(tokenizer, vocab, dataset_path, dataset_cache):
+def get_dataset(tokenizer, dataset_path, dataset_cache):
     """Read PersonaChat json file and return tokenized dataset"""
-    dataset_basename = os.path.basename(dataset_path).split(".")[0]
-    dataset_cache = "dataset_cache_{}".format(dataset_basename)
 
     if dataset_cache and os.path.isfile(dataset_cache):
         logger.info("Load tokenized dataset from cache at %s", dataset_cache)
         dataset = torch.load(dataset_cache)
 
     else:
+        dataset_basename = os.path.basename(dataset_path).split(".")[0]
+        dataset_cache = "dataset_cache_{}".format(dataset_basename)
+
         logger.info("Reading {}".format(dataset_path))
         with open(dataset_path, "r", encoding="utf-8") as f:
             dataset = json.loads(f.read())
@@ -132,7 +62,7 @@ def get_dataset(tokenizer, vocab, dataset_path, dataset_cache):
 
         def tokenize(obj):
             if isinstance(obj, str):
-                return vocab[tokenizer(obj)]
+                return tokenizer.convert_tokens_to_ids(tokenizer.tokenize(obj))
             if isinstance(obj, dict):
                 return dict((n, tokenize(o)) for n, o in obj.items())
             return list(tokenize(o) for o in obj)
@@ -142,10 +72,74 @@ def get_dataset(tokenizer, vocab, dataset_path, dataset_cache):
     return dataset
 
 
-def make_logdir(model_name: str):
-    """Create unique path to save results and checkpoints, e.g. runs/Sep22_19-45-59_gpu-7_gpt2"""
-    # Code copied from ignite repo
-    current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-    logdir = os.path.join(
-        'runs', current_time + '_' + socket.gethostname() + '_' + model_name)
-    return logdir
+def get_dataloaders(args, tokenizer):
+    """ Prepare the dataset for training and evaluation """
+    personachat = get_dataset(tokenizer, args.dataset_path, args.dataset_cache)
+
+    logger.info("Build inputs and labels")
+    datasets = {"train": defaultdict(list), "valid": defaultdict(list)}
+    for dataset_name, dataset in personachat.items():
+        num_candidates = len(dataset[0]["utterances"][0]["candidates"])
+        if args.num_candidates > 0 and dataset_name == 'train':
+            num_candidates = min(args.num_candidates, num_candidates)
+        for dialog in dataset:
+            persona = dialog["personality"].copy()
+            for _ in range(args.personality_permutations):
+                for utterance in dialog["utterances"]:
+                    history = utterance["history"][-(2 * args.max_history + 1):]
+                    for j, candidate in enumerate(utterance["candidates"][-num_candidates:]):
+                        labels = bool(j == num_candidates - 1)
+                        instance = build_input_from_segments(
+                            persona, history, candidate, tokenizer, labels)
+                        for input_name, input_array in instance.items():
+                            datasets[dataset_name][input_name].append(
+                                input_array)
+                    datasets[dataset_name]["n_candidates"] = num_candidates
+                # permuted personalities
+                persona = [persona[-1]] + persona[:-1]
+
+    logger.info("Pad inputs and convert to Tensor")
+    tensor_datasets = {"train": [], "valid": []}
+    for dataset_name, dataset in datasets.items():
+        dataset = pad_dataset(
+            args, dataset, padding=tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[-1]))
+        for input_name in MODEL_INPUTS:
+            tensor = torch.tensor(dataset[input_name])
+            tensor = tensor.view(
+                (-1, datasets[dataset_name]["n_candidates"]) + tensor.shape[1:])
+            tensor_datasets[dataset_name].append(tensor)
+
+    logger.info("Build train and validation dataloaders")
+    train_dataset, valid_dataset = TensorDataset(*tensor_datasets["train"]), TensorDataset(*tensor_datasets["valid"])
+    train_loader = DataLoader(train_dataset,
+                              batch_size=args.train_batch_size,
+                              num_workers=args.num_workers,
+                              shuffle=True)
+    valid_loader = DataLoader(valid_dataset,
+                              batch_size=args.valid_batch_size,
+                              num_workers=args.num_workers,
+                              shuffle=False)
+
+    return {"train": train_loader, "valid": valid_loader}
+
+
+def get_kogpt2_model():
+    """Get KoGPT2 model after downloading"""
+
+    model = GPT2LMHeadModel.from_pretrained('skt/kogpt2-base-v2')
+    model.eval()
+
+    return model
+
+
+def get_kogpt2_tokenizer():
+    """Get KoGPT2 Tokenizer after downloading"""
+
+    tokenizer = PreTrainedTokenizerFast.from_pretrained("skt/kogpt2-base-v2",
+                                                        bos_token='<s>',
+                                                        eos_token='</s>',
+                                                        unk_token='<unk>',
+                                                        pad_token='<pad>',
+                                                        mask_token='<mask>')
+
+    return tokenizer

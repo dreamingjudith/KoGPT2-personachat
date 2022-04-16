@@ -6,7 +6,7 @@ Fine-tuned KoGPT2 chatbot demo with translated PersonaChat (ongoing)
 
 개발환경의 재현을 위해 [Anaconda](https://www.anaconda.com/products/individual) 환경 사용을 권장합니다.
 
-```
+```bash
 $ git clone --recurse-submodules https://github.com/dreamingjudith/KoGPT2-personachat.git
 $ cd KoGPT2-personachat
 $ conda env create -f environment.yml
@@ -14,42 +14,54 @@ $ conda env create -f environment.yml
 
 그러나 만약 `virtualenv` 같은 다른 가상환경을 사용할 경우 아래의 모듈을 설치했을 때 정상동작을 보장합니다. (괄호 안의 숫자는 개발 당시 사용한 버전입니다.)
 
-- gluonnlp (0.10.0)
-- mxnet* (1.6.0)
-- pytorch** (1.6.0)
-- pytorch-lightning (0.8.5)
-- sentencepiece (0.1.92)
-- tensorboardX (1.8)
-- tensorflow (2.2.0)
-- transformers (3.0.2)
+- pytorch* (1.10.2)
+- pytorch-lightning (1.5.10)
+- tensorboard (2.8.0)
+- tokenizers (0.10.3)
+- transformers (4.3.3)
 
-\* 실제 설치한 모듈명은 mxnet-cu*101*입니다. CUDA 버전에 맞게 *101* 부분을 수정하여 설치하세요.<br />
-\** `cudatoolkit=={$CUDA_버전}`과 함께 설치하면 GPU 버전의 PyTorch를 설치합니다. 자세한 내용은 [링크](https://pytorch.org/get-started/locally/)를 참고하세요.
+\* `cudatoolkit=={$CUDA_버전}`과 함께 설치하면 GPU 버전의 PyTorch를 설치합니다. 자세한 내용은 [링크](https://pytorch.org/get-started/locally/)를 참고하세요.
 
 ## Usage
 
 ### Train
 
-학습 시 dataset_path로 지정된 JSON 파일의 이름에 따라 미리 토크나이즈된 dataset_cache를 불러올 수도 있습니다. 따라서 정확한 파일 패스 지정이 필요합니다.
+학습 시 `--dataset_path`로 지정된 JSON 파일의 이름에 따라 미리 토크나이즈된 dataset_cache를 불러올 수도 있습니다. 따라서 정확한 파일 패스 지정이 필요합니다. 혹은 `--dataset_cache` 를 통해 캐시 파일의 위치를 직접 지정할 수도 있습니다.
 
-```
+```bash
 $ conda activate cm
-$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --max_epochs=3 --dataset_path dataset/sample.json
-## OR you can restore model checkpoint
-$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --train --restore --max_epochs=3 --dataset_path dataset/sample.json --model_params logs/cm_kogpt2/version_0/checkpoints/model_last.ckpt
+
+# Using dataset_path
+$ python main.py --mode train --dataset_path dataset/sample.json --gpus 1
+
+# Using dataset_cache
+$ python main.py --mode train --dataset_cache dataset_cache_sample --gpus 1
+
+# You can restore model from checkpoint
+$ python main.py --mode train --dataset_path dataset/sample.json --gpus 1 --ckpt_path ${MODEL_CHECKPOINT_PATH}
 ```
 
-더 많은 종류의 하이퍼파라미터 세팅을 확인하고 싶을 땐 아래와 같이 입력하세요.
+더 많은 종류의 하이퍼파라미터 옵션을 확인하고 싶을 땐 아래와 같이 입력하세요.
 
 ```
-$ python cm_kogpt2.py --help
+$ python main.py --help
 ```
+
+### :warning: Default hyperparameters used in PyTorch-Lightning Trainer
+
+| flag name               | value |
+| ----------------------- | ----- |
+| max_epochs              | 3     |
+| accumulate_grad_batches | 8     |
+| gradient_clip_val       | 1.0   |
+
+만약 위에 명시된 것과 다른 값을 사용하고 싶다면 명령 실행 시 `--max_epochs 10` 과 같이 사용하면 됩니다.
 
 ### Interactive chatting with pretrained checkpoint
 
-```
+```bash
 $ conda activate cm
-$ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat --dataset_path dataset/sample.json --model_params ${MODEL_CHECKPOINT_PATH}
+$ python main.py --mode chat --dataset_path dataset/sample.json --ckpt_path ${MODEL_CHECKPOINT_PATH}
 ```
 
 ## Reference
@@ -58,6 +70,7 @@ $ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat --dataset_path dataset/sampl
 - [KoGPT2-chatbot by haven-jeon](https://github.com/haven-jeon/KoGPT2-chatbot)
 
 ## Contributors
+- [@dreamingjudith](https://github.com/dreamingjudith)
 - [@ModestyJ](https://github.com/ModestyJ)
 - [@kheonCH](https://github.com/kheonCh)
 - [@prodigyduck](https://github.com/prodigyduck)
@@ -66,4 +79,3 @@ $ CUDA_VISIBLE_DEVICES=0 python cm_kogpt2.py --chat --dataset_path dataset/sampl
 ## License
 
 Modified MIT License
-
