@@ -8,14 +8,9 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import GPT2LMHeadModel, PreTrainedTokenizerFast
 
+from constants import MODEL_INPUTS, PADDED_INPUTS, SPECIAL_TOKENS
+
 logger = logging.getLogger(__file__)
-
-
-SPECIAL_TOKENS = ["<s>", "</s>", "<usr>", "<sys>", "<pad>"]
-ATTR_TO_SPECIAL_TOKEN = {'bos_token': '<s>', 'eos_token': '</s>', 'pad_token': '<pad>',
-                         'additional_special_tokens': ['<usr>', '<sys>']}
-MODEL_INPUTS = ["input_ids", "labels", "token_type_ids"]
-PADDED_INPUTS = ["input_ids", "labels", "token_type_ids"]
 
 
 def pad_dataset(args, dataset, padding=0):
