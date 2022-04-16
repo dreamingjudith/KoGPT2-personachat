@@ -50,14 +50,15 @@ def build_input_from_segments(persona, history, reply, tokenizer, labels=False, 
 
 def get_dataset(tokenizer, dataset_path, dataset_cache):
     """Read PersonaChat json file and return tokenized dataset"""
-    dataset_basename = os.path.basename(dataset_path).split(".")[0]
-    dataset_cache = "dataset_cache_{}".format(dataset_basename)
 
     if dataset_cache and os.path.isfile(dataset_cache):
         logger.info("Load tokenized dataset from cache at %s", dataset_cache)
         dataset = torch.load(dataset_cache)
 
     else:
+        dataset_basename = os.path.basename(dataset_path).split(".")[0]
+        dataset_cache = "dataset_cache_{}".format(dataset_basename)
+
         logger.info("Reading {}".format(dataset_path))
         with open(dataset_path, "r", encoding="utf-8") as f:
             dataset = json.loads(f.read())

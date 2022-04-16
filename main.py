@@ -151,10 +151,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_path", type=str,
                         default="dataset/Ko_persona_merged.json",
-                        help="Path of the dataset.")
+                        help="Path of url of the dataset (JSON)")
     parser.add_argument("--dataset_cache", type=str,
                         default='./dataset_cache',
-                        help="Path or url of the dataset cache")
+                        help="Path of the dataset cache")
     parser.add_argument("--num_candidates", type=int, default=1,
                         help="Number of candidates for training")
     parser.add_argument("--personality_permutations", type=int, default=1,
@@ -183,9 +183,6 @@ def main():
     parser.add_argument('--mode', type=str, choices=['train', 'eval', 'chat'],
                         required=True,
                         help='Script mode to execute (train, eval, chat)')
-
-    # TODO: 로컬 테스트 중 tokenizer 로딩하다 죽는 현상 회피할 방법 찾기
-    # os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
     # Model configuration augments
     parser = CMPersonaChat.add_model_specific_args(parser)
