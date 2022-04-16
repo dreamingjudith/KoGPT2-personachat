@@ -35,6 +35,8 @@ def train(args, tokenizer):
             args,
             callbacks=[checkpoint_callback],
             gradient_clip_val=1.0,
+            max_epochs=3,
+            accumulate_grad_batches=8,
             logger=tb_logger)
 
         # model = CMPersonaChat(args)  # 그냥 args로 전달하면 멍청한 코드가 model init 때 namespace를 파싱하지 못 하고 dict로 인식하고 자빠짐
@@ -45,6 +47,8 @@ def train(args, tokenizer):
             resume_from_checkpoint=args.ckpt_path,
             callbacks=[checkpoint_callback],
             gradient_clip_val=1.0,
+            max_epochs=3,
+            accumulate_grad_batches=8,
             logger=tb_logger)
 
         model = CMPersonaChat.load_from_checkpoint(args.ckpt_path)
