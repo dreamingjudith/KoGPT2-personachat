@@ -113,8 +113,8 @@ def train(dataloader, args):
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=f'{tb_logger.log_dir}/checkpoints',
-        filename='model_{epoch:02d}-{loss/avg_val_loss:.4f}',
-        auto_insert_metric_name=True,
+        filename='model_epoch-{epoch:02d}_avg_val_loss-{loss/avg_val_loss:.4f}',
+        auto_insert_metric_name=False,
         verbose=True,
         save_last=True,
         save_top_k=10,
