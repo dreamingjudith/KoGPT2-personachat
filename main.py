@@ -5,6 +5,7 @@ import os
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
+from interact import chat
 
 from utils import get_dataloaders, get_kogpt2_tokenizer
 from models import CMPersonaChat
@@ -12,7 +13,9 @@ from models import CMPersonaChat
 logger = logging.getLogger(__file__)
 
 
-def train(dataloader, args):
+def train(args, tokenizer):
+    dataloader = get_dataloaders(args, tokenizer)
+
     tb_logger = TensorBoardLogger("logs", name=args.name)
 
     checkpoint_callback = ModelCheckpoint(
@@ -83,8 +86,16 @@ def main():
     parser.add_argument("--num_workers", type=int,
                         default=min(os.cpu_count(), 8), help="Number of workers for DataLoader")
 
+    # Special arguments for inference
+    parser.add_argument("--temperature", type=float, default=0.7, help="Sampling softmax temperature")
+    parser.add_argument("--top_k", type=int, default=0, help="Filter top-k tokens before sampling (<=0: no filtering)")
+    parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering (top-p) before sampling (<=0.0: no filtering)")
+    parser.add_argument("--no_sample", action='store_true', help="Set to use greedy decoding instead of sampling")
+    parser.add_argument("--min_length", type=int, default=1, help="Minimum length of the output utterances")
+    parser.add_argument("--max_length", type=int, default=20, help="Maximum length of the output utterances")
+
     # Select train/inference
-    parser.add_argument('--mode', type=str, choices=['train', 'eval', 'chat'],
+    parser.add_argument('--mode', type=str, choices=['train', 'chat'],
                         required=True,
                         help='Script mode to execute (train, eval, chat)')
 
@@ -95,13 +106,12 @@ def main():
 
     # Load dataset
     tokenizer = get_kogpt2_tokenizer()
-    dataloader = get_dataloaders(args, tokenizer)
 
     if args.mode == 'train':
-        train(dataloader, args)
+        train(args, tokenizer)
 
     elif args.mode == 'chat':
-        raise ValueError("Not implemented yet!!")
+        chat(args, tokenizer)
 
 
 if __name__ == "__main__":
