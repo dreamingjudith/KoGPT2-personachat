@@ -1,6 +1,5 @@
 import argparse
 import json
-from multiprocessing import Pool
 import os
 from time import sleep
 
