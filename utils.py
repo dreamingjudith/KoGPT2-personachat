@@ -136,7 +136,7 @@ def get_kogpt2_tokenizer():
     """Get KoGPT2 Tokenizer after downloading"""
 
     tokenizer = PreTrainedTokenizerFast.from_pretrained("skt/kogpt2-base-v2",
-                                                        bos_token='</s>',
+                                                        bos_token='<s>',
                                                         eos_token='</s>',
                                                         unk_token='<unk>',
                                                         pad_token='<pad>',
