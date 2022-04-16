@@ -155,3 +155,5 @@ dmypy.json
 dataset_cache_*
 logs/
 dataset/
+!dataset/sample.json
+!dataset/eval_merge.json
