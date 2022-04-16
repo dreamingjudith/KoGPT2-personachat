@@ -18,14 +18,14 @@ MODEL_INPUTS = ["input_ids", "labels", "token_type_ids"]
 PADDED_INPUTS = ["input_ids", "labels", "token_type_ids"]
 
 
-def pad_dataset(dataset, padding=0):
+def pad_dataset(args, dataset, padding=0):
     """ Pad the dataset.
     This could be optimized by defining a Dataset class and padding at the batch level,
     but this is simpler. """
-    max_l = max(len(x) for x in dataset["input_ids"])
+    max_l = min(args.max_len, max(len(x) for x in dataset["input_ids"]))
 
     for name in PADDED_INPUTS:
-        dataset[name] = [x + [padding if name != "labels" else -100] * (max_l - len(x)) for x in dataset[name]]
+        dataset[name] = [x + [padding if name != "labels" else -100] * (max_l - len(x)) if len(x) < args.max_len else x[:args.max_len] for x in dataset[name]]
 
     return dataset
 
@@ -107,7 +107,7 @@ def get_dataloaders(args, tokenizer):
     tensor_datasets = {"train": [], "valid": []}
     for dataset_name, dataset in datasets.items():
         dataset = pad_dataset(
-            dataset, padding=tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[-1]))
+            args, dataset, padding=tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS[-1]))
         for input_name in MODEL_INPUTS:
             tensor = torch.tensor(dataset[input_name])
             tensor = tensor.view(
