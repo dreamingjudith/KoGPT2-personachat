@@ -1,6 +1,20 @@
 # KoGPT2-personachat
 
-Fine-tuned KoGPT2 chatbot demo with translated PersonaChat (ongoing) 
+Fine-tuned KoGPT2 chatbot demo with translated PersonaChat (ongoing)
+
+## CHANGELOG
+
+### 2022-04-16
+
+- 기존에 사용하던 SKT KoGPT2를 [skt/kogpt2-base-v2](https://huggingface.co/skt/kogpt2-base-v2)로 업데이트하고, 이로 인해 발생하는 Dependency도 업데이트하여 `environment.yml`에 반영했습니다.
+- 파이썬 버전을 기존 3.7에서 3.8로 업데이트했습니다.
+- PersonaChat 데이터셋 번역 후 파일 저장하는 로직을 수정하였습니다.
+- PersonaChat 데이터셋 번역에 사용하는 모듈로 [kakaotrans](https://github.com/monologg/kakaotrans)를 추가하고 구글, 카카오, valid set 번역 전부 분리되어 있던 스크립트를 하나로 통합했습니다.
+- 학습/추론 스크립트 파일명을 `cm_kogpt2.py`에서 `main.py`로 수정하였습니다.
+- `main.py`이 지나치게 길어지는 문제로 인해 모델 정의는 `models.py`로 분리하고 추론 및 추론 과정에서 사용하는 함수들은 `interact.py`로 분리했습니다. 학습의 경우 구현이 길지 않아 `main.py`에 유지했습니다.
+- `constants.py` 파일을 추가해 특수 토큰 등의 정의를 옮겨 `main.py`나 `interact.py` 등에서 자유롭게 사용할 수 있도록 수정했습니다.
+- 기존에 학습/추론과 무관한 스크립트가 저장되어 있던 폴더 이름을 `utils`에서 `tools`로 수정하고, 데이터셋 생성이나 모델 다운로드 등의 함수들은 `utils.py` 파일로 정의했습니다.
+- PersonaChat의 원본 데이터셋으로부터 본 프로젝트 데이터셋에 맞게 파싱하는 스크립트 `tools/convert_parlai_jsonl_to_json.py`를 추가했습니다. 단, 번역은 별도로 수행해야 합니다.
 
 ## Install
 
