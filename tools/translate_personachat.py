@@ -150,7 +150,7 @@ def translate_personachat(args):
                 try:
                     translated_dict = translate_single_example(args.type, example)
                     break
-                except AttributeError:
+                except:
                     if try_num == args.max_try:
                         raise
                     print(f"Connection error occured. Sleeping {args.wait_time} seconds...")
